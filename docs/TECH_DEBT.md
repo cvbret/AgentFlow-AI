@@ -47,6 +47,37 @@ Evaluate FastAPI / Starlette / HTTP client version compatibility together during
 
 Low
 
+## TD-003 - LLM HTTP timeout is not explicitly configured
+
+### Current Situation / 当前情况
+
+`LLMClient` 当前使用 HTTPX 默认 timeout。
+
+Reviewer 验证当前默认值有限，不会无限等待，但该行为不是 AgentFlow-AI 明确配置的运行契约。
+
+### Reason Accepted / 接受原因
+
+TASK-002 目标是建立最小 LLM Client abstraction。
+
+统一 timeout、retry 和 failure policy 属于后续 Reliability 阶段。
+
+### Risk / 风险
+
+未来 dependency 默认值变化、不同 Tool / Provider 对 timeout 要求不同、timeout 错误分类不统一，可能造成运行行为不明确。
+
+### Resolution Plan / 解决计划
+
+在 Reliability 阶段：
+
+* 显式定义 LLM timeout 配置
+* 建立 timeout error classification
+* 增加对应测试
+* 与 retry policy 一起设计
+
+### Priority / 优先级
+
+Low
+
 ## TD-002 - Backend working-directory dependency
 
 ### Current Situation / 当前情况

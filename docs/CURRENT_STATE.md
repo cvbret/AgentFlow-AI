@@ -25,8 +25,14 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * FastAPI application established
 * `/api/health` endpoint implemented and independently verified
 * automated API tests established
+* TASK-002 - First LLM Client Abstraction
+* LLM configuration established
+* typed chat message schema established
+* OpenAI-compatible LLM client implemented
+* provider HTTP and invalid response errors handled
+* LLM client tests independently verified
 
-上述项目基础和 TASK-001 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001 和 TASK-002 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -38,9 +44,12 @@ None currently confirmed.
 
 * TD-001 - TestClient dependency deprecation warning
 * TD-002 - Backend working-directory dependency
+* TD-003 - LLM HTTP timeout is not explicitly configured
 
 ## Next / 下一步
 
-TASK-002 - First LLM Client Abstraction
+TASK-003 - First Tool Abstraction and Registry
 
-TASK-002 仅表示下一项计划，不代表已经开始执行。
+Status: Not Started
+
+TASK-003 仅表示下一项计划，不代表已经开始执行。

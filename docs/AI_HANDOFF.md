@@ -16,19 +16,19 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-001 - Minimal FastAPI Application`
+* **Task:** `TASK-002 - First LLM Client Abstraction`
 * **Review Result:** `PASS WITH NOTES`
-* **Implementation:** FastAPI application established; `GET /api/health`; automated API tests; Uvicorn startup independently verified
-* **Git commit:** `6b5c6c6 feat: implement TASK-001 minimal FastAPI application`
+* **Summary:** LLM configuration established; typed `ChatMessage` schema established; `LLMClient` abstraction implemented; OpenAI-compatible request and response parsing implemented; provider HTTP and invalid response errors handled; mocked HTTP tests independently verified
+* **Git commit:** `Pending commit`
 
-以上 commit hash 来自当前 repository 的 `git log --oneline`，不是推测值。
+TASK-002 已通过 Independent Review，当前尚未提交。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-002 - First LLM Client Abstraction`
+* **Task:** `TASK-003 - First Tool Abstraction and Registry`
 * **Status:** `Not Started`
 
-TASK-002 只是下一项任务，尚未开始。
+TASK-003 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -116,6 +116,7 @@ Task Definition
 
 * `TD-001` — TestClient dependency deprecation warning
 * `TD-002` — Backend working-directory dependency
+* `TD-003` — LLM HTTP timeout is not explicitly configured
 
 这里只做摘要；详细信息仍以 `docs/TECH_DEBT.md` 为 Source of Truth。
 
