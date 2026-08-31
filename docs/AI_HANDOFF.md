@@ -16,19 +16,19 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-002 - First LLM Client Abstraction`
+* **Task:** `TASK-003 - Tool Abstraction and Tool Registry`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** LLM configuration established; typed `ChatMessage` schema established; `LLMClient` abstraction implemented; OpenAI-compatible request and response parsing implemented; provider HTTP and invalid response errors handled; mocked HTTP tests independently verified
+* **Summary:** Tool abstraction; Pydantic input validation; `ToolResult`; `ToolRegistry`; `CalculatorTool`; registry metadata; duplicate / missing tool handling; security review passed; 19 tests passed
 * **Git commit:** `Pending commit`
 
-TASK-002 已通过 Independent Review，当前尚未提交。
+TASK-003 已通过 Independent Review，当前尚未提交。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-003 - First Tool Abstraction and Registry`
+* **Task:** `TASK-004 - Tool Calling Integration`
 * **Status:** `Not Started`
 
-TASK-003 尚未开始。
+TASK-004 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -42,6 +42,9 @@ TASK-003 尚未开始。
 * Redis 不作为 durable Agent Task 的唯一 Source of Truth。
 * Agent execution 后期必须有 bounded loop / failure handling。
 * 不为了“企业级”而提前制造无需求的 abstraction。
+* AI coding agents must not write outside `E:\AIProjects\AgentFlow-AI`。
+
+AgentFlow-AI repository root 同时也是 AI Coding Agent 的文件系统施工边界。
 
 ## Development Workflow / 当前 AI 辅助开发流程
 
@@ -117,6 +120,7 @@ Task Definition
 * `TD-001` — TestClient dependency deprecation warning
 * `TD-002` — Backend working-directory dependency
 * `TD-003` — LLM HTTP timeout is not explicitly configured
+* `TD-004` — Calculator accepts non-finite and boolean numeric inputs
 
 这里只做摘要；详细信息仍以 `docs/TECH_DEBT.md` 为 Source of Truth。
 

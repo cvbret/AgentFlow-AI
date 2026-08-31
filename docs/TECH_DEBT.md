@@ -47,6 +47,48 @@ Evaluate FastAPI / Starlette / HTTP client version compatibility together during
 
 Low
 
+## TD-004 - Calculator accepts non-finite and boolean numeric inputs
+
+### Current Situation / 当前情况
+
+当前 Calculator input 使用普通 `float` validation。
+
+因此可能接受：
+
+* boolean
+* NaN
+* Infinity
+
+### Reason Accepted / 接受原因
+
+TASK-003 主要目标是验证 Tool abstraction、Registry 和安全的固定运算能力。
+
+当前问题不会导致 arbitrary code execution，也不影响 Tool architecture。
+
+### Risk / 风险
+
+未来 Tool Calling 中可能生成语义异常 numeric result，例如：
+
+* `nan`
+* `inf`
+* `-0.0`
+
+并向后续 Agent reasoning 传播。
+
+### Resolution Plan / 解决计划
+
+后续维护阶段：
+
+* 使用 strict numeric validation
+* 拒绝 bool
+* 拒绝 NaN
+* 拒绝 positive / negative Infinity
+* 增加边界测试
+
+### Priority / 优先级
+
+Low
+
 ## TD-003 - LLM HTTP timeout is not explicitly configured
 
 ### Current Situation / 当前情况

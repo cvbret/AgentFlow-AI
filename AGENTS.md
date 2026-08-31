@@ -51,6 +51,36 @@ Stable Context
 
 中文释义：每次任务都应有清晰边界。技术方案不能因为“以后可能有用”就提前加入；重大架构变化必须记录到 `docs/DECISIONS.md`。
 
+## Workspace Boundary / 工作区边界
+
+Repository root：
+
+`E:\AIProjects\AgentFlow-AI`
+
+所有写操作必须限制在 `E:\AIProjects\AgentFlow-AI` 及其子目录。
+
+AI Agent 禁止：
+
+* 创建 repository 外文件
+* 修改 repository 外文件
+* 删除 repository 外文件
+* 移动 repository 外文件
+* 重命名 repository 外文件
+* 在其他 Git repository 中执行写操作
+* 因路径解析错误而在 user directory 或其他项目目录创建文件
+
+以下目录和路径均属于禁止写入范围，包括但不限于：
+
+* `E:\AIProjects\SmartDoc-AI`
+* `E:\AIProjects\pr-agent`
+* `C:\Users\...`
+* 任意其他 repository
+* 任意 repository root 之外的 absolute path
+
+如果当前 Task 看起来需要修改 repository 外文件，必须 `STOP` 并向用户报告，不得自行继续。
+
+在 Developer Agent 执行文件写操作前，应确认目标路径位于 repository root 内。
+
 ## Testing Rules / 测试规则
 
 * Do not delete tests just to make CI pass.
@@ -68,6 +98,19 @@ Follow `docs/ARCHITECTURE.md`.
 * Known and intentionally accepted compromises belong in `docs/TECH_DEBT.md`.
 * Keep API, application, runtime, tool, and infrastructure responsibilities separated.
 
+## Independent Review Rules / 独立审查规则
+
+Independent Reviewer 应检查 `Workspace Boundary Verification`。
+
+如果发现 Developer 操作 repository 外路径，不得默认当成 UI artifact。应明确调查：
+
+* 文件是否真实存在
+* 是否被创建
+* 是否被修改
+* 是否属于其他 repository
+
+并根据实际影响报告 Severity。
+
 ## Completion Report / 完成报告
 
 At the end of a task, report:
@@ -79,6 +122,19 @@ At the end of a task, report:
 5. architecture impact
 6. remaining risks
 7. technical debt introduced
+
+后续 Completion Report 必须包含：
+
+## Workspace Boundary Verification
+
+至少说明：
+
+* repository root
+* 是否创建 repository 外文件
+* 是否修改 repository 外文件
+* 是否移动或删除 repository 外文件
+
+正常结果：`未发现 repository root 之外的写操作。`
 
 ## Important State Rule / 重要状态规则
 
