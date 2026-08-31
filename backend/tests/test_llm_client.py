@@ -53,6 +53,7 @@ def test_chat_sends_openai_compatible_request_and_returns_content() -> None:
         '{"role":"user","content":"Hello"}]}'
     )
     assert result.content == "Hello from the model"
+    assert result.tool_calls == []
 
 
 def test_chat_raises_provider_error_for_non_2xx_response() -> None:

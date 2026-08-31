@@ -7,7 +7,7 @@ from app.llm.client import (
     LLMClientError,
     LLMProviderError,
 )
-from app.llm.schemas import ChatMessage, LLMResponse
+from app.llm.schemas import ChatMessage, LLMResponse, ToolCall
 
 __all__ = [
     "ChatMessage",
@@ -17,4 +17,5 @@ __all__ = [
     "LLMClientError",
     "LLMProviderError",
     "LLMResponse",
+    "ToolCall",
 ]

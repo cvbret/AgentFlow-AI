@@ -1,3 +1,4 @@
+import json
 from collections.abc import Sequence
 from typing import Any
 
@@ -5,7 +6,9 @@ import httpx
 from pydantic import ValidationError
 
 from app.core.config import Settings, get_settings
-from app.llm.schemas import ChatMessage, LLMResponse
+from app.llm.schemas import ChatMessage, LLMResponse, ToolCall
+from app.llm.tool_schema import OpenAICompatibleToolSchemaAdapter
+from app.tools.schemas import ToolMetadata
 
 
 class LLMClientError(RuntimeError):
@@ -45,11 +48,18 @@ class LLMClient:
     def endpoint(self) -> str:
         return f"{self._settings.llm_base_url.rstrip('/')}/chat/completions"
 
-    def chat(self, messages: Sequence[ChatMessage]) -> LLMResponse:
+    def chat(
+        self,
+        messages: Sequence[ChatMessage],
+        tools: Sequence[ToolMetadata] | None = None,
+    ) -> LLMResponse:
         payload = {
             "model": self._settings.llm_model,
-            "messages": [message.model_dump() for message in messages],
+            "messages": [message.model_dump(exclude_none=True) for message in messages],
         }
+        if tools is not None:
+            payload["tools"] = OpenAICompatibleToolSchemaAdapter.convert_many(tools)
+
         headers = {
             "Authorization": f"Bearer {self._settings.llm_api_key}",
             "Content-Type": "application/json",
@@ -77,15 +87,82 @@ class LLMClient:
             ) from exc
 
         try:
-            content = data["choices"][0]["message"]["content"]
+            message = data["choices"][0]["message"]
         except (KeyError, IndexError, TypeError) as exc:
             raise InvalidLLMResponseError(
-                "LLM provider response is missing choices[0].message.content"
+                "LLM provider response is missing choices[0].message.content "
+                "or choices[0].message.tool_calls"
             ) from exc
 
-        if not isinstance(content, str):
+        if not isinstance(message, dict):
+            raise InvalidLLMResponseError(
+                "LLM provider response message must be an object"
+            )
+
+        content = message.get("content")
+        if content is not None and not isinstance(content, str):
             raise InvalidLLMResponseError(
                 "LLM provider response content must be a string"
             )
 
-        return LLMResponse(content=content)
+        tool_calls = self._parse_tool_calls(message.get("tool_calls", []))
+        if content is None and not tool_calls:
+            raise InvalidLLMResponseError(
+                "LLM provider response must contain content or tool_calls"
+            )
+
+        return LLMResponse(content=content, tool_calls=tool_calls)
+
+    @staticmethod
+    def _parse_tool_calls(raw_tool_calls: Any) -> list[ToolCall]:
+        if raw_tool_calls is None:
+            return []
+        if not isinstance(raw_tool_calls, list):
+            raise InvalidLLMResponseError("LLM provider tool_calls must be a list")
+
+        parsed_tool_calls: list[ToolCall] = []
+        for index, raw_tool_call in enumerate(raw_tool_calls):
+            try:
+                call_id = raw_tool_call["id"]
+                function = raw_tool_call["function"]
+                name = function["name"]
+                raw_arguments = function["arguments"]
+            except (KeyError, TypeError) as exc:
+                raise InvalidLLMResponseError(
+                    f"LLM provider tool call at index {index} is invalid"
+                ) from exc
+
+            if not isinstance(call_id, str) or not isinstance(name, str):
+                raise InvalidLLMResponseError(
+                    f"LLM provider tool call at index {index} has invalid id or name"
+                )
+
+            if isinstance(raw_arguments, str):
+                try:
+                    arguments = json.loads(raw_arguments)
+                except json.JSONDecodeError as exc:
+                    raise InvalidLLMResponseError(
+                        f"LLM provider tool call at index {index} has invalid arguments JSON"
+                    ) from exc
+            elif isinstance(raw_arguments, dict):
+                arguments = raw_arguments
+            else:
+                raise InvalidLLMResponseError(
+                    f"LLM provider tool call at index {index} arguments must be JSON"
+                )
+
+            if not isinstance(arguments, dict):
+                raise InvalidLLMResponseError(
+                    f"LLM provider tool call at index {index} arguments must be an object"
+                )
+
+            try:
+                parsed_tool_calls.append(
+                    ToolCall(id=call_id, name=name, arguments=arguments)
+                )
+            except ValidationError as exc:
+                raise InvalidLLMResponseError(
+                    f"LLM provider tool call at index {index} is invalid"
+                ) from exc
+
+        return parsed_tool_calls

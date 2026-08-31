@@ -9,12 +9,13 @@ from app.tools.exceptions import (
     ToolNotFoundError,
 )
 from app.tools.registry import ToolRegistry
-from app.tools.schemas import ToolMetadata, ToolResult
+from app.tools.schemas import ToolExecutionResult, ToolMetadata, ToolResult
 
 __all__ = [
     "DuplicateToolError",
     "Tool",
     "ToolError",
+    "ToolExecutionResult",
     "ToolExecutionError",
     "ToolInputValidationError",
     "ToolMetadata",

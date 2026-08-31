@@ -16,19 +16,19 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-003 - Tool Abstraction and Tool Registry`
+* **Task:** `TASK-004 - Tool Calling Integration`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** Tool abstraction; Pydantic input validation; `ToolResult`; `ToolRegistry`; `CalculatorTool`; registry metadata; duplicate / missing tool handling; security review passed; 19 tests passed
+* **Summary:** ToolCall domain model; provider schema conversion; `LLMClient` tools support; tool call parsing; `ToolExecutor`; single-step Calculator execution; 26 tests passed
 * **Git commit:** `Pending commit`
 
-TASK-003 已通过 Independent Review，当前尚未提交。
+TASK-004 已通过 Independent Review，当前尚未提交。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-004 - Tool Calling Integration`
+* **Task:** `TASK-005 - Minimal Agent Execution Loop`
 * **Status:** `Not Started`
 
-TASK-004 尚未开始。
+TASK-005 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -43,6 +43,18 @@ TASK-004 尚未开始。
 * Agent execution 后期必须有 bounded loop / failure handling。
 * 不为了“企业级”而提前制造无需求的 abstraction。
 * AI coding agents must not write outside `E:\AIProjects\AgentFlow-AI`。
+
+AI coding workflow currently uses Workspace Boundary Guard v1，包括：
+
+* root verification
+* repository-relative writes
+* planned write set
+* containment verification
+* post-write audit
+
+Hard filesystem sandbox is not yet implemented.
+
+PI-001 process incident status: `Mitigated`.
 
 AgentFlow-AI repository root 同时也是 AI Coding Agent 的文件系统施工边界。
 

@@ -14,6 +14,12 @@ Establish the project foundation and complete the first runnable FastAPI backend
 
 中文释义：当前首先要形成清晰的项目骨架和最小可运行服务，再逐步接入 LLM 与 Agent Runtime。
 
+## Process / Infrastructure
+
+* Workspace Boundary Guard v1 established
+
+当前 Guard 属于 Soft / Process Guard，不是操作系统级 Hard Filesystem Sandbox。
+
 ## Completed / 已完成
 
 * project scope defined
@@ -38,8 +44,16 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * ToolRegistry implemented
 * CalculatorTool implemented
 * Tool Registry tests independently verified
+* TASK-004 - Tool Calling Integration
+* provider-neutral `ToolCall` model established
+* OpenAI-compatible tool schema adapter implemented
+* `LLMClient` supports optional tool definitions
+* provider tool call parsing implemented
+* `ToolExecutor` implemented
+* Calculator Tool Call integration independently verified
+* 26 tests passed
 
-上述项目基础、TASK-001、TASK-002 和 TASK-003 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003 和 TASK-004 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -56,8 +70,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-004 - Tool Calling Integration
+TASK-005 - Minimal Agent Execution Loop
 
 Status: Not Started
 
-TASK-004 仅表示下一项计划，不代表已经开始执行。
+TASK-005 仅表示下一项计划，不代表已经开始执行。

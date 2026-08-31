@@ -57,7 +57,61 @@ Repository root：
 
 `E:\AIProjects\AgentFlow-AI`
 
+### Repository Root Verification / Repository Root 验证
+
+Coding Agent 开始工作前必须执行并确认：
+
+```powershell
+Get-Location
+git rev-parse --show-toplevel
+```
+
+两者必须确认当前工作目录和 Git repository root 为：
+
+`E:\AIProjects\AgentFlow-AI`
+
+如果 repository root 不是上述路径，必须 `STOP`，不得继续执行写操作。
+
 所有写操作必须限制在 `E:\AIProjects\AgentFlow-AI` 及其子目录。
+
+### Repository-relative Write Rule / Repository-relative 写入规则
+
+实际创建、修改、移动、删除或重命名文件时，必须优先使用 repository-relative path，例如：
+
+允许：
+
+`backend/app/tools/executor.py`
+
+禁止将以下形式作为动态写入目标：
+
+`E:\AIProjects\AgentFlow-AI\backend\app\tools\executor.py`
+
+更禁止任何 repository root 外的 absolute path。
+
+绝对 repository root 只能用于验证环境，不得用于动态拼接 patch target。
+
+### Planned Write Set / 计划写入集合
+
+Developer 在第一次写操作之前必须明确本次任务的 Planned Write Set，并在 Completion Report 中列出。例如：
+
+```text
+Planned Write Set:
+- backend/app/...
+- backend/tests/...
+- tasks/TASK-XXX.md
+```
+
+如果开发过程中需要增加 Write Set 之外的文件，必须先确认该文件仍属于 active task 且位于 repository root 内。
+
+### Path Containment Check / 路径包含检查
+
+如果 Coding Agent 自己构造 path，必须在写入前解析并验证：
+
+`resolved_target` 必须位于 `resolved_repository_root` 之下。
+
+如果 containment check 失败，必须 `STOP`，不得执行写操作。
+
+这些是 Workspace Boundary Guard v1 的 Soft / Process Guard，不是操作系统级 filesystem sandbox；AGENTS.md、脚本和 Git 不能绝对阻止 repository 外写入。
 
 AI Agent 禁止：
 
@@ -80,6 +134,14 @@ AI Agent 禁止：
 如果当前 Task 看起来需要修改 repository 外文件，必须 `STOP` 并向用户报告，不得自行继续。
 
 在 Developer Agent 执行文件写操作前，应确认目标路径位于 repository root 内。
+
+### No Silent Cleanup / 不得静默清理
+
+如果已经发生 repository 外写入，即使随后成功删除，也必须在 Completion Report 中报告：
+
+`Workspace Boundary Violation`
+
+不得因为最终文件系统无残留，就报告正常完成或 `PASS`。
 
 ## Testing Rules / 测试规则
 
@@ -125,11 +187,23 @@ At the end of a task, report:
 
 后续 Completion Report 必须包含：
 
+## Planned Write Set
+
+列出本次任务预期写入的文件或目录。
+
+## Actual Repository Changes
+
+列出 Git 实际看到的修改，包括 tracked、staged 和 untracked 文件。
+
 ## Workspace Boundary Verification
 
 至少说明：
 
-* repository root
+* Repository root
+* Working directory verified
+* Repository root verified
+* Repository-relative writes used
+* External writes detected
 * 是否创建 repository 外文件
 * 是否修改 repository 外文件
 * 是否移动或删除 repository 外文件
