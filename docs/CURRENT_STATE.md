@@ -20,6 +20,7 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * initial architecture defined
 * roadmap defined
 * long-term AI development documentation system established
+* AI handoff context system established
 * TASK-001 - Minimal FastAPI Application
 * FastAPI application established
 * `/api/health` endpoint implemented and independently verified

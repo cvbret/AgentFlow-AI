@@ -11,11 +11,35 @@ Before starting work, read:
 1. `docs/PROJECT.md`
 2. `docs/ARCHITECTURE.md`
 3. `docs/CURRENT_STATE.md`
-4. the active `tasks/TASK-XXX.md`
-5. relevant source files
-6. relevant tests
+4. `docs/AI_HANDOFF.md` when applicable
+5. the active `tasks/TASK-XXX.md`
+6. relevant source files
+7. relevant tests
 
 中文释义：先理解项目目标、当前架构、真实状态、当前任务和受影响代码，再修改。若任务与文档冲突，应先识别冲突，不要默默扩大范围。
+
+## AI Context and Handoff Rules / AI 上下文与交接规则
+
+`docs/AI_HANDOFF.md` 用于帮助新的 AI assistant 或 Coding Agent 快速恢复项目快照。适用时应阅读，但它不是代码 Requirement 的替代品。
+
+项目上下文由以下部分组成：
+
+```text
+Stable Context
+  + Current State
+  + Current Task
+  + Relevant Code
+```
+
+如果 `AI_HANDOFF.md` 与其他事实冲突，优先级为：
+
+1. actual code / tests
+2. active task
+3. `docs/CURRENT_STATE.md`
+4. architecture / decisions
+5. `docs/AI_HANDOFF.md`
+
+发现冲突时必须在任务报告中明确说明，不得静默选择一个版本继续执行。
 
 ## Scope Rules / 范围规则
 
