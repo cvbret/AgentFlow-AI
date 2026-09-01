@@ -3,9 +3,8 @@ from collections.abc import Sequence
 from typing import Any
 
 import httpx
-from pydantic import ValidationError
 
-from app.core.config import Settings, get_settings
+from app.core.config import ConfigurationError, Settings, get_settings
 from app.llm.schemas import ChatMessage, LLMResponse, ToolCall
 from app.llm.tool_schema import OpenAICompatibleToolSchemaAdapter
 from app.tools.schemas import ToolMetadata
@@ -13,10 +12,6 @@ from app.tools.schemas import ToolMetadata
 
 class LLMClientError(RuntimeError):
     """Base error for the LLM client boundary."""
-
-
-class ConfigurationError(LLMClientError):
-    """Raised when required LLM configuration is missing or invalid."""
 
 
 class LLMProviderError(LLMClientError):
@@ -33,16 +28,16 @@ class LLMClient:
         settings: Settings | None = None,
         http_client: httpx.Client | None = None,
     ) -> None:
-        try:
-            self._settings = settings or get_settings()
-        except ValidationError as exc:
-            details = "; ".join(
-                f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
-                for error in exc.errors()
-            )
-            raise ConfigurationError(f"Invalid LLM configuration: {details}") from exc
+        self._settings = settings or get_settings()
 
-        self._http_client = http_client or httpx.Client()
+        self._owns_http_client = http_client is None
+        self._http_client = (
+            httpx.Client() if http_client is None else http_client
+        )
+
+    def close(self) -> None:
+        if self._owns_http_client:
+            self._http_client.close()
 
     @property
     def endpoint(self) -> str:

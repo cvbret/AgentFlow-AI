@@ -16,19 +16,26 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-005 - Minimal Agent Execution Loop`
-* **Review Result:** `PASS`
-* **Summary:** `AgentRuntime`; bounded Agent Loop; assistant tool-call history; tool result history; multi-round execution; multiple tool calls; `max_steps`; final answer validation; 40 tests passed
+* **Task:** `TASK-006 - Agent API Integration`
+* **Review Result:** `PASS WITH NOTES`
+* **Summary:** `POST /api/agent/run`; request validation; API → AgentRuntime integration; dependency override; domain error mapping; safe configuration failure handling; HTTP client ownership; thread-safe runtime lifecycle; 57 tests passed
 * **Git commit:** `Pending commit`
 
-TASK-005 已通过 Independent Review，当前尚未提交。
+TASK-006 已通过 Independent Review，当前尚未提交。
+
+## Compatibility Note / 兼容性说明
+
+ConfigurationError currently lives in `app.core.config`.
+The legacy import path remains usable, but ConfigurationError is no longer a subclass of LLMClientError.
+No current repository caller depends on that inheritance relationship.
+Review compatibility if the public error hierarchy is formalized later.
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-006 - Agent API Integration`
+* **Task:** `TASK-007 - Task State Foundation`
 * **Status:** `Not Started`
 
-TASK-006 尚未开始。
+TASK-007 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 

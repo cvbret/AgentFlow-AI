@@ -40,6 +40,9 @@ class AgentRuntime:
         self._tool_executor = ToolExecutor(tool_registry)
         self._max_steps = max_steps
 
+    def close(self) -> None:
+        self._llm_client.close()
+
     def run(self, initial_messages: Sequence[ChatMessage]) -> AgentResult:
         messages = list(initial_messages)
         tool_definitions = self._tool_registry.list()

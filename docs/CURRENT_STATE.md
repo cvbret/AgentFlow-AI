@@ -61,8 +61,18 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * `max_steps` execution boundary established
 * final answer contract established
 * 40 tests passed
+* TASK-006 - Agent API Integration
+* synchronous Agent API established
+* POST /api/agent/run exposed
+* request/response contracts established
+* API → AgentRuntime boundary established
+* safe domain error mapping implemented
+* process-level shared AgentRuntime lifecycle established
+* LLMClient HTTP resource ownership clarified
+* thread-safe lazy initialization implemented
+* 57 tests passed
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004 和 TASK-005 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005 和 TASK-006 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -79,8 +89,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-006 - Agent API Integration
+TASK-007 - Task State Foundation
 
 Status: Not Started
 
-TASK-006 仅表示下一项计划，不代表已经开始执行。
+TASK-007 仅表示下一项计划，不代表已经开始执行。
