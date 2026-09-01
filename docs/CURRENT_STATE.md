@@ -52,8 +52,17 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * `ToolExecutor` implemented
 * Calculator Tool Call integration independently verified
 * 26 tests passed
+* TASK-005 - Minimal Agent Execution Loop
+* `AgentRuntime` established
+* bounded Agent Loop implemented
+* Tool results reintroduced into conversation history
+* multi-round Tool Calling supported
+* multiple Tool Calls per LLM response supported
+* `max_steps` execution boundary established
+* final answer contract established
+* 40 tests passed
 
-上述项目基础、TASK-001、TASK-002、TASK-003 和 TASK-004 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004 和 TASK-005 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -70,8 +79,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-005 - Minimal Agent Execution Loop
+TASK-006 - Agent API Integration
 
 Status: Not Started
 
-TASK-005 仅表示下一项计划，不代表已经开始执行。
+TASK-006 仅表示下一项计划，不代表已经开始执行。

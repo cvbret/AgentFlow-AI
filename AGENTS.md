@@ -82,13 +82,27 @@ git rev-parse --show-toplevel
 
 `backend/app/tools/executor.py`
 
-禁止将以下形式作为动态写入目标：
+在工具允许使用 relative path 时，不得将以下形式作为动态写入目标：
 
 `E:\AIProjects\AgentFlow-AI\backend\app\tools\executor.py`
 
 更禁止任何 repository root 外的 absolute path。
 
-绝对 repository root 只能用于验证环境，不得用于动态拼接 patch target。
+绝对 repository root 默认只用于验证环境，不得用于动态拼接 patch target；如果某个 Tool API 或 patch mechanism 技术上强制要求 absolute path，适用下述例外。
+
+### Repository-internal Absolute Path Exception / 仓库内绝对路径例外
+
+如果某个 Tool API 或 patch mechanism 技术上强制要求 absolute path，可以使用 repository 内 absolute path，但必须满足：
+
+1. 先确认 repository root。
+2. 对 target 执行 resolved path containment verification。
+3. resolved target 必须位于 `E:\AIProjects\AgentFlow-AI` 或其子目录。
+4. 如果 target 不在 repository root 内，必须 `STOP`，不得写入。
+5. Completion Report 必须说明使用 absolute path 的技术原因，以及 containment verification 结果。
+
+`repository-internal absolute path` 不等于 `Workspace Boundary Violation`，前提是 containment 已验证。
+
+`repository-external absolute path` 等于 `Workspace Boundary Violation`。
 
 ### Planned Write Set / 计划写入集合
 

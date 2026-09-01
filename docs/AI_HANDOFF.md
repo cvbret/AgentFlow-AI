@@ -16,19 +16,19 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-004 - Tool Calling Integration`
-* **Review Result:** `PASS WITH NOTES`
-* **Summary:** ToolCall domain model; provider schema conversion; `LLMClient` tools support; tool call parsing; `ToolExecutor`; single-step Calculator execution; 26 tests passed
+* **Task:** `TASK-005 - Minimal Agent Execution Loop`
+* **Review Result:** `PASS`
+* **Summary:** `AgentRuntime`; bounded Agent Loop; assistant tool-call history; tool result history; multi-round execution; multiple tool calls; `max_steps`; final answer validation; 40 tests passed
 * **Git commit:** `Pending commit`
 
-TASK-004 已通过 Independent Review，当前尚未提交。
+TASK-005 已通过 Independent Review，当前尚未提交。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-005 - Minimal Agent Execution Loop`
+* **Task:** `TASK-006 - Agent API Integration`
 * **Status:** `Not Started`
 
-TASK-005 尚未开始。
+TASK-006 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -47,9 +47,10 @@ TASK-005 尚未开始。
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 
 * root verification
-* repository-relative writes
-* planned write set
-* containment verification
+* repository-relative path preferred
+* repository-internal absolute path only when tool requires it
+* containment verification required
+* repository-external write = violation
 * post-write audit
 
 Hard filesystem sandbox is not yet implemented.

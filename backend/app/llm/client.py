@@ -55,7 +55,7 @@ class LLMClient:
     ) -> LLMResponse:
         payload = {
             "model": self._settings.llm_model,
-            "messages": [message.model_dump(exclude_none=True) for message in messages],
+            "messages": [self._serialize_message(message) for message in messages],
         }
         if tools is not None:
             payload["tools"] = OpenAICompatibleToolSchemaAdapter.convert_many(tools)
@@ -112,6 +112,32 @@ class LLMClient:
             )
 
         return LLMResponse(content=content, tool_calls=tool_calls)
+
+    @staticmethod
+    def _serialize_message(message: ChatMessage) -> dict[str, Any]:
+        serialized: dict[str, Any] = {
+            "role": message.role,
+            "content": message.content,
+        }
+        if message.role == "tool":
+            serialized["tool_call_id"] = message.tool_call_id
+        if message.role == "assistant" and message.tool_calls:
+            serialized["tool_calls"] = [
+                {
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.name,
+                        "arguments": json.dumps(
+                            tool_call.arguments,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        ),
+                    },
+                }
+                for tool_call in message.tool_calls
+            ]
+        return serialized
 
     @staticmethod
     def _parse_tool_calls(raw_tool_calls: Any) -> list[ToolCall]:
