@@ -71,8 +71,18 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * LLMClient HTTP resource ownership clarified
 * thread-safe lazy initialization implemented
 * 57 tests passed
+* TASK-007 - Task State Foundation
+* Task domain entity established
+* UUID task identity established
+* Task state machine established
+* explicit lifecycle methods implemented
+* domain invariants enforced
+* lifecycle-related public mutation protected
+* UTC timestamp contract established
+* monotonic updated_at enforced
+* 99 tests passed
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005 和 TASK-006 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006 和 TASK-007 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -89,8 +99,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-007 - Task State Foundation
+TASK-008 - PostgreSQL Task Persistence
 
 Status: Not Started
 
-TASK-007 仅表示下一项计划，不代表已经开始执行。
+TASK-008 仅表示下一项计划，不代表已经开始执行。
