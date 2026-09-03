@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     llm_api_key: str = Field(min_length=1)
     llm_base_url: str = Field(min_length=1)
     llm_model: str = Field(min_length=1)
+    database_url: str | None = Field(default=None, min_length=1)
 
 
 @lru_cache

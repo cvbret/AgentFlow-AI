@@ -2,7 +2,14 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from app.tasks.exceptions import (
     InvalidTaskStateTransitionError,
@@ -46,14 +53,58 @@ class Task(BaseModel):
         return _as_utc(value)
 
     @model_validator(mode="after")
-    def validate_initial_state(self) -> "Task":
-        if self.status is not TaskStatus.PENDING:
+    def validate_state(self, info: ValidationInfo) -> "Task":
+        restoring = bool(info.context and info.context.get("restore"))
+        if not restoring and self.status is not TaskStatus.PENDING:
             raise ValueError("new Tasks must start in PENDING state")
-        if self.result is not None or self.error is not None:
-            raise ValueError("new Tasks must not have result or error")
+        if self.status in (TaskStatus.PENDING, TaskStatus.RUNNING):
+            if self.result is not None or self.error is not None:
+                raise ValueError(
+                    "PENDING and RUNNING Tasks must not have result or error"
+                )
+        elif self.status is TaskStatus.SUCCEEDED:
+            if self.error is not None:
+                raise ValueError("SUCCEEDED Tasks must not have error")
+            if self.result is None or not self.result.strip():
+                raise ValueError(
+                    "SUCCEEDED Tasks must have a non-empty result"
+                )
+        elif self.status is TaskStatus.FAILED:
+            if self.result is not None:
+                raise ValueError("FAILED Tasks must not have result")
+            if self.error is None or not self.error.strip():
+                raise ValueError("FAILED Tasks must have a non-empty error")
         if self.created_at > self.updated_at:
             raise ValueError("created_at must not be later than updated_at")
         return self
+
+    @classmethod
+    def restore(
+        cls,
+        *,
+        id: UUID,
+        status: TaskStatus,
+        input: str,
+        result: str | None,
+        error: str | None,
+        created_at: datetime,
+        updated_at: datetime,
+    ) -> "Task":
+        try:
+            return cls.model_validate(
+                {
+                    "id": id,
+                    "status": status,
+                    "input": input,
+                    "result": result,
+                    "error": error,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                },
+                context={"restore": True},
+            )
+        except ValidationError as exc:
+            raise TaskError("Invalid persisted Task state") from exc
 
     def __setattr__(self, name: str, value: object) -> None:
         if name in self._PROTECTED_FIELDS and name in self.__dict__:
