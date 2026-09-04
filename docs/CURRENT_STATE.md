@@ -111,8 +111,16 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * invalid UUID returns 422
 * safe FAILED task response verified
 * 115 runnable tests passed in current environment
+* TASK-011 - Expose Task ID from Agent Run
+* Agent Run response now exposes persistent task_id
+* task_id originates from the real Domain Task
+* AgentRunResponse DTO established
+* POST /api/agent/run → task_id → GET /api/tasks/{task_id} resource closure established
+* existing failure mapping preserved
+* query API regression verified
+* 116 runnable tests passed in current environment
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 和 TASK-010 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010 和 TASK-011 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -129,8 +137,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-011 - Expose Task ID from Agent Run
+TASK-012 - Task Listing API
 
 Status: Not Started
 
-TASK-011 仅表示下一项计划，不代表已经开始执行。
+TASK-012 仅表示下一项计划，不代表已经开始执行。

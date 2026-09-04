@@ -1,8 +1,8 @@
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
-from types import SimpleNamespace
 from unittest.mock import Mock
+from uuid import UUID
 
 import httpx
 import pytest
@@ -25,6 +25,7 @@ from app.llm.client import (
 )
 from app.main import app
 from app.llm.schemas import ChatMessage
+from app.tasks import Task
 from app.tasks.repository import TaskRepository
 from app.tasks.service import TaskExecutionService
 from app.tools.exceptions import ToolExecutionError, ToolNotFoundError
@@ -50,11 +51,14 @@ class FakeTaskExecutionService:
     def __init__(self, runtime_provider: Callable[[], FakeAgentRuntime]) -> None:
         self._runtime_provider = runtime_provider
 
-    def execute(self, message: str) -> SimpleNamespace:
+    def execute(self, message: str) -> Task:
         result = self._runtime_provider().run(
             [ChatMessage(role="user", content=message)]
         )
-        return SimpleNamespace(result=result.content)
+        task = Task(input=message)
+        task.start()
+        task.succeed(result.content)
+        return task
 
 
 def override_task_execution_service(
@@ -89,10 +93,35 @@ def test_agent_run_returns_final_answer(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"answer": "96"}
+    payload = response.json()
+    assert payload["answer"] == "96"
+    assert UUID(payload["task_id"])
     assert runtime.messages == [
         [ChatMessage(role="user", content="计算 12 × 8")]
     ]
+
+
+def test_agent_run_uses_task_id_returned_by_service(
+    client: TestClient,
+) -> None:
+    task = Task(input="service task")
+    task.start()
+    task.succeed("96")
+    service = Mock(spec=TaskExecutionService)
+    service.execute.return_value = task
+    app.dependency_overrides[get_task_execution_service] = lambda: service
+
+    response = client.post(
+        "/api/agent/run",
+        json={"message": "service task"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "task_id": str(task.id),
+        "answer": "96",
+    }
+    service.execute.assert_called_once_with("service task")
 
 
 @pytest.mark.parametrize(

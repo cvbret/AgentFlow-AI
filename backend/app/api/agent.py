@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
@@ -29,6 +31,7 @@ class AgentRunRequest(BaseModel):
 
 
 class AgentRunResponse(BaseModel):
+    task_id: UUID
     answer: str
 
 
@@ -65,4 +68,4 @@ def run_agent(
     task = service.execute(request.message)
     if task.result is None:
         raise RuntimeError("Succeeded Task is missing a result")
-    return AgentRunResponse(answer=task.result)
+    return AgentRunResponse(task_id=task.id, answer=task.result)

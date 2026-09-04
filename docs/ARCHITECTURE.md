@@ -32,6 +32,10 @@ The API layer handles HTTP request handling, request validation, and response fo
 
 查询接口使用独立的 `TaskQueryResponse` DTO，不直接暴露 ORM Model。
 
+`POST /api/agent/run` 成功响应返回 `task_id + answer`，其中 `task_id` 来自 `TaskExecutionService` 返回的真实 Domain `Task.id`。当前资源闭环为：
+
+`POST /api/agent/run → task_id + answer → GET /api/tasks/{task_id}`
+
 ## Task / Application Layer / Task 应用层
 
 The Task Service coordinates the application-level flow for one task. It should connect the API contract to the Agent Runtime without mixing HTTP concerns, database concerns, and raw LLM calls into one function.

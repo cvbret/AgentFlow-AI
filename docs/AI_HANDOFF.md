@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-010 - Task Query API`
+* **Task:** `TASK-011 - Expose Task ID from Agent Run`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** `GET /api/tasks/{task_id}`; `TaskQueryResponse`; Repository → Domain → DTO boundary; 404 / 422 semantics; safe task query response; request-scoped Session; PostgreSQL integration test defined but not executed in current environment
+* **Summary:** `POST /api/agent/run` returns `task_id + answer`; `task_id` comes from `TaskExecutionService` Domain `Task.id`; `AgentRunResponse` DTO; POST → GET Task resource closure; failure mapping preserved; PostgreSQL closure integration test defined but not executed in current environment
 * **Git commit:** `Pending commit`
 
-TASK-010 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-011 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -32,15 +32,15 @@ Review compatibility if the public error hierarchy is formalized later.
 
 ## Non-blocking Notes / 非阻塞说明
 
-* Note: 当前环境未设置 `DATABASE_URL`，因此 TASK-010 PostgreSQL integration test 本轮未执行。
+* Note: 当前环境无 `DATABASE_URL`，因此 TASK-011 PostgreSQL POST → GET 闭环 integration test 本轮未执行。
 * Note: 既有 `StarletteDeprecationWarning` 仍存在，对应已有 `TD-001`。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-011 - Expose Task ID from Agent Run`
+* **Task:** `TASK-012 - Task Listing API`
 * **Status:** `Not Started`
 
-TASK-011 尚未开始。
+TASK-012 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 

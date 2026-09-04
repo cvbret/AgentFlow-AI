@@ -1,5 +1,6 @@
 import os
 from collections.abc import Iterator
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -67,6 +68,19 @@ def call_agent_api(engine: Engine, runtime: FakeRuntime, message: str):
         app.dependency_overrides.clear()
 
 
+def call_task_query_api(engine: Engine, task_id: UUID):
+    def override_db_session() -> Iterator[Session]:
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_db_session] = override_db_session
+    try:
+        with TestClient(app) as client:
+            return client.get(f"/api/tasks/{task_id}")
+    finally:
+        app.dependency_overrides.clear()
+
+
 def get_task_by_input(engine: Engine, message: str) -> TaskRecord:
     with Session(engine) as session:
         task = session.scalar(
@@ -80,12 +94,22 @@ def test_api_success_persists_succeeded_task_in_postgresql(engine: Engine) -> No
     response = call_agent_api(engine, FakeRuntime(), "integration success")
 
     assert response.status_code == 200
-    assert response.json() == {"answer": "96"}
+    payload = response.json()
+    assert payload["answer"] == "96"
+    task_id = UUID(payload["task_id"])
 
     task = get_task_by_input(engine, "integration success")
+    assert task.id == task_id
     assert task.status == "SUCCEEDED"
     assert task.result == "96"
     assert task.error is None
+
+    query_response = call_task_query_api(engine, task_id)
+
+    assert query_response.status_code == 200
+    assert query_response.json()["id"] == payload["task_id"]
+    assert query_response.json()["status"] == "succeeded"
+    assert query_response.json()["result"] == payload["answer"]
 
 
 def test_api_failure_persists_failed_task_in_postgresql(engine: Engine) -> None:
