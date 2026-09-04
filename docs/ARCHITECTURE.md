@@ -58,13 +58,19 @@ At minimum, a Tool has:
 
 ## State Layer / 状态层
 
-**Current status: not implemented.**
+**Current status: durable task state persistence implemented.**
 
-中文释义：当前仓库尚未实现 durable task state、执行历史或数据库状态层，文档中的未来存储方案不能被误读为现有能力。
+中文释义：当前仓库已通过 `TaskRepository` 和 PostgreSQL 实现 durable task state；执行历史仍未实现。
+
+The Task Service persists the task lifecycle through:
+
+`PENDING → RUNNING → SUCCEEDED / FAILED`
+
+`TaskExecutionService` coordinates this lifecycle with the Agent Runtime. Each API request uses a request-scoped SQLAlchemy Session.
 
 The expected future responsibility is:
 
-* **PostgreSQL:** durable task state, execution history, and the durable source of truth.
+* **PostgreSQL:** durable task state and the durable source of truth; execution history remains future scope.
 * **Redis:** cache, temporary state, and locks.
 
 Redis must not be the only source of truth for a durable Agent Task.

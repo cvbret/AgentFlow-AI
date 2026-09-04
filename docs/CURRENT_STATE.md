@@ -91,8 +91,18 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * transaction boundary and rollback semantics verified
 * real PostgreSQL integration verified
 * 114 tests passed
+* TASK-009 - Task Execution Integration
+* TaskExecutionService established
+* persistent Agent task lifecycle established
+* PENDING → RUNNING → SUCCEEDED / FAILED orchestration implemented
+* API now delegates execution orchestration to TaskExecutionService
+* request-scoped SQLAlchemy Session lifecycle established
+* AgentRuntime process-level reuse preserved
+* Agent failure persistence implemented
+* primary / secondary failure priority contract established
+* best-effort lifecycle persistence contract documented
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007 和 TASK-008 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008 和 TASK-009 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -109,8 +119,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-009 - Task Execution Integration
+TASK-010 - Task Query API
 
 Status: Not Started
 
-TASK-009 仅表示下一项计划，不代表已经开始执行。
+TASK-010 仅表示下一项计划，不代表已经开始执行。

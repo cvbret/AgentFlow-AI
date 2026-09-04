@@ -1,9 +1,15 @@
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from threading import Lock
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
 
 from app.agents.runtime import AgentRuntime
 from app.core.config import get_settings
+from app.db.session import get_session_factory
 from app.llm.client import LLMClient
+from app.tasks.repository import TaskRepository
+from app.tasks.service import TaskExecutionService
 from app.tools.implementations.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
 
@@ -36,6 +42,32 @@ def get_agent_runtime() -> AgentRuntime:
 
 def get_agent_runtime_provider() -> Callable[[], AgentRuntime]:
     return get_agent_runtime
+
+
+def get_db_session() -> Generator[Session, None, None]:
+    session = get_session_factory()()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def get_task_repository(
+    session: Session = Depends(get_db_session),
+) -> TaskRepository:
+    return TaskRepository(session)
+
+
+def get_task_execution_service(
+    repository: TaskRepository = Depends(get_task_repository),
+    runtime_provider: Callable[[], AgentRuntime] = Depends(
+        get_agent_runtime_provider
+    ),
+) -> TaskExecutionService:
+    return TaskExecutionService(
+        repository=repository,
+        runtime_provider=runtime_provider,
+    )
 
 
 def close_agent_runtime() -> None:

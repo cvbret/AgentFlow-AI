@@ -1,17 +1,15 @@
-from collections.abc import Callable
-
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
-from app.agents.runtime import AgentMaxStepsExceededError, AgentRuntime
-from app.api.dependencies import get_agent_runtime_provider
+from app.agents.runtime import AgentMaxStepsExceededError
+from app.api.dependencies import get_task_execution_service
 from app.llm.client import (
     ConfigurationError,
     InvalidLLMResponseError,
     LLMProviderError,
 )
-from app.llm.schemas import ChatMessage
+from app.tasks.service import TaskExecutionService
 from app.tools.exceptions import (
     ToolExecutionError,
     ToolInputValidationError,
@@ -62,11 +60,9 @@ router = APIRouter()
 @router.post("/agent/run", response_model=AgentRunResponse)
 def run_agent(
     request: AgentRunRequest,
-    runtime_provider: Callable[[], AgentRuntime] = Depends(
-        get_agent_runtime_provider
-    ),
+    service: TaskExecutionService = Depends(get_task_execution_service),
 ) -> AgentRunResponse:
-    result = runtime_provider().run(
-        [ChatMessage(role="user", content=request.message)]
-    )
-    return AgentRunResponse(answer=result.content)
+    task = service.execute(request.message)
+    if task.result is None:
+        raise RuntimeError("Succeeded Task is missing a result")
+    return AgentRunResponse(answer=task.result)

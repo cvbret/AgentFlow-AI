@@ -1,14 +1,21 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import httpx
 import pytest
+from fastapi import Depends
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.agents.runtime import AgentMaxStepsExceededError, AgentResult
 from app.api import dependencies
-from app.api.dependencies import get_agent_runtime_provider
+from app.api.dependencies import (
+    get_agent_runtime_provider,
+    get_task_execution_service,
+)
 from app.core.config import Settings, get_settings
 from app.llm.client import (
     ConfigurationError,
@@ -18,6 +25,8 @@ from app.llm.client import (
 )
 from app.main import app
 from app.llm.schemas import ChatMessage
+from app.tasks.repository import TaskRepository
+from app.tasks.service import TaskExecutionService
 from app.tools.exceptions import ToolExecutionError, ToolNotFoundError
 
 
@@ -37,8 +46,30 @@ class FakeAgentRuntime:
         pass
 
 
+class FakeTaskExecutionService:
+    def __init__(self, runtime_provider: Callable[[], FakeAgentRuntime]) -> None:
+        self._runtime_provider = runtime_provider
+
+    def execute(self, message: str) -> SimpleNamespace:
+        result = self._runtime_provider().run(
+            [ChatMessage(role="user", content=message)]
+        )
+        return SimpleNamespace(result=result.content)
+
+
+def override_task_execution_service(
+    runtime_provider: Callable[[], FakeAgentRuntime] = Depends(
+        get_agent_runtime_provider
+    ),
+) -> FakeTaskExecutionService:
+    return FakeTaskExecutionService(runtime_provider)
+
+
 @pytest.fixture
 def client() -> Iterator[TestClient]:
+    app.dependency_overrides[get_task_execution_service] = (
+        override_task_execution_service
+    )
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -150,6 +181,32 @@ def test_agent_run_maps_provider_and_configuration_errors_safely(
     assert sensitive_fragment not in response.text
     assert "traceback" not in response.text.lower()
     assert "C:\\internal" not in response.text
+
+
+def test_agent_run_keeps_provider_mapping_when_failed_persistence_fails(
+    client: TestClient,
+) -> None:
+    runtime = FakeAgentRuntime()
+    agent_error = LLMProviderError("provider secret and raw payload")
+    runtime.error = agent_error
+    repository = Mock(spec=TaskRepository)
+    repository.save.side_effect = [
+        None,
+        None,
+        SQLAlchemyError("failed state save failed"),
+    ]
+    service = TaskExecutionService(repository, lambda: runtime)
+    app.dependency_overrides[get_task_execution_service] = lambda: service
+
+    response = client.post(
+        "/api/agent/run",
+        json={"message": "调用模型"},
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "LLM provider request failed."}
+    assert repository.save.call_count == 3
+    assert "failed state save failed" not in response.text
 
 
 def test_agent_run_maps_real_configuration_failure_safely(

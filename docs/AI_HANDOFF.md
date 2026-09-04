@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-008 - PostgreSQL Task Persistence`
+* **Task:** `TASK-009 - Task Execution Integration`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** PostgreSQL; SQLAlchemy; Alembic; `TaskRepository`; Domain / ORM mapping; `Task.restore()`; transaction semantics; real PostgreSQL verification; 114 tests passed
+* **Summary:** `TaskExecutionService`; persistent PENDING / RUNNING / SUCCEEDED / FAILED lifecycle; API → Service boundary; request-scoped SQLAlchemy Session; AgentRuntime reuse; failure persistence; primary / secondary failure priority with exception chaining; best-effort persistence semantics
 * **Git commit:** `Pending commit`
 
-TASK-008 已通过 Independent Review，当前尚未提交。
+TASK-009 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -32,15 +32,15 @@ Review compatibility if the public error hierarchy is formalized later.
 
 ## Non-blocking Notes / 非阻塞说明
 
-* Note: Repository PostgreSQL integration tests 在未设置 `DATABASE_URL` 时会 skip。
-* Note: Alembic 当前通过统一 Settings 读取 `DATABASE_URL`，因此 migration 同时依赖完整 application configuration。
+* Note: 当前环境无 `DATABASE_URL`，因此 Focused Re-Review 未再次运行 PostgreSQL integration tests；此前 implementation 阶段已完成真实 PostgreSQL 验证。
+* Note: 既有 `StarletteDeprecationWarning` 仍存在，对应 `TD-001`。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-009 - Task Execution Integration`
+* **Task:** `TASK-010 - Task Query API`
 * **Status:** `Not Started`
 
-TASK-009 尚未开始。
+TASK-010 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -50,7 +50,7 @@ TASK-009 尚未开始。
 * 不提前实现 Multi-Agent。
 * Repository 是 Source of Truth。
 * Architecture changes 必须进入 `docs/DECISIONS.md`。
-* Durable task state 未来优先使用 PostgreSQL。
+* Durable task state 当前使用 PostgreSQL，作为持久化 Agent Task 的 Source of Truth。
 * Redis 不作为 durable Agent Task 的唯一 Source of Truth。
 * Agent execution 后期必须有 bounded loop / failure handling。
 * 不为了“企业级”而提前制造无需求的 abstraction。
