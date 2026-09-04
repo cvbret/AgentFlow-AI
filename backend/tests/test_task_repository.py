@@ -2,7 +2,7 @@ import os
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import delete, inspect
@@ -119,6 +119,59 @@ def test_persisted_timestamps_are_utc_and_preserved(session: Session) -> None:
 
 def test_get_missing_task_returns_none(session: Session) -> None:
     assert TaskRepository(session).get(uuid4()) is None
+
+
+def _listing_task(index: int, created_at: datetime) -> Task:
+    return Task(
+        id=UUID(int=index),
+        input=f"task-{index}",
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+
+def test_list_returns_empty_list_when_no_tasks_exist(session: Session) -> None:
+    assert TaskRepository(session).list(20, 0) == []
+
+
+def test_list_returns_domain_tasks_in_stable_newest_first_order(session: Session) -> None:
+    repository = TaskRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    timestamps = (
+        (1, base),
+        (2, base + timedelta(seconds=1)),
+        (3, base + timedelta(seconds=1)),
+    )
+    for index, created_at in timestamps:
+        repository.save(_listing_task(index, created_at))
+
+    result = repository.list(10, 0)
+
+    assert [task.id for task in result] == [UUID(int=3), UUID(int=2), UUID(int=1)]
+    assert all(isinstance(task, Task) for task in result)
+
+
+def test_list_applies_limit_and_offset(session: Session) -> None:
+    repository = TaskRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    for index in range(1, 5):
+        repository.save(_listing_task(index, base + timedelta(seconds=index)))
+
+    assert [task.id for task in repository.list(2, 0)] == [UUID(int=4), UUID(int=3)]
+    assert [task.id for task in repository.list(2, 2)] == [UUID(int=2), UUID(int=1)]
+
+
+def test_list_pages_do_not_duplicate_tasks(session: Session) -> None:
+    repository = TaskRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    for index in range(1, 4):
+        repository.save(_listing_task(index, base))
+
+    first_page = repository.list(2, 0)
+    second_page = repository.list(2, 2)
+
+    assert {task.id for task in first_page}.isdisjoint({task.id for task in second_page})
+    assert len(first_page) + len(second_page) == 3
 
 
 def test_multiple_tasks_remain_independent(session: Session) -> None:

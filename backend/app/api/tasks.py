@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.tasks.models import Task
@@ -31,7 +31,27 @@ class TaskQueryResponse(BaseModel):
         )
 
 
+class TaskListResponse(BaseModel):
+    items: list[TaskQueryResponse]
+    limit: int
+    offset: int
+
+
 router = APIRouter()
+
+
+@router.get("/tasks", response_model=TaskListResponse)
+def list_tasks(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    repository: TaskRepository = Depends(get_task_repository),
+) -> TaskListResponse:
+    tasks = repository.list(limit=limit, offset=offset)
+    return TaskListResponse(
+        items=[TaskQueryResponse.from_domain(task) for task in tasks],
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/tasks/{task_id}", response_model=TaskQueryResponse)

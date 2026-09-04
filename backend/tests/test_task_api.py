@@ -1,8 +1,8 @@
 import os
 from collections.abc import Iterator
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -109,6 +109,65 @@ def test_get_task_rejects_invalid_uuid(
     repository.get.assert_not_called()
 
 
+def test_list_tasks_uses_default_pagination(client: TestClient, repository: Mock) -> None:
+    task = Task(input="list me")
+    repository.list.return_value = [task]
+
+    response = client.get("/api/tasks")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["limit"] == 20
+    assert payload["offset"] == 0
+    assert len(payload["items"]) == 1
+    item = payload["items"][0]
+    assert item["id"] == str(task.id)
+    assert item["status"] == "pending"
+    assert item["input"] == "list me"
+    assert item["result"] is None
+    assert item["error"] is None
+    assert datetime.fromisoformat(item["created_at"]) == task.created_at
+    assert datetime.fromisoformat(item["updated_at"]) == task.updated_at
+    repository.list.assert_called_once_with(limit=20, offset=0)
+
+
+def test_list_tasks_accepts_custom_pagination(client: TestClient, repository: Mock) -> None:
+    repository.list.return_value = []
+
+    response = client.get("/api/tasks?limit=2&offset=3")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "limit": 2, "offset": 3}
+    repository.list.assert_called_once_with(limit=2, offset=3)
+
+
+@pytest.mark.parametrize("query", ["limit=0", "limit=101", "offset=-1"])
+def test_list_tasks_rejects_invalid_pagination(
+    client: TestClient, repository: Mock, query: str
+) -> None:
+    response = client.get(f"/api/tasks?{query}")
+
+    assert response.status_code == 422
+    repository.list.assert_not_called()
+
+
+def test_list_tasks_returns_empty_items(client: TestClient, repository: Mock) -> None:
+    repository.list.return_value = []
+
+    response = client.get("/api/tasks")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
+def test_list_tasks_response_has_no_total_field(client: TestClient, repository: Mock) -> None:
+    repository.list.return_value = []
+
+    response = client.get("/api/tasks")
+
+    assert set(response.json()) == {"items", "limit", "offset"}
+
+
 @pytest.fixture(scope="session")
 def database_url() -> str:
     value = os.environ.get("DATABASE_URL")
@@ -172,3 +231,30 @@ def test_get_task_reads_repository_data_from_postgresql(
         datetime.fromisoformat(payload["updated_at"]).utcoffset()
         == timedelta(0)
     )
+
+
+def test_list_tasks_reads_paginated_data_from_postgresql(
+    engine: Engine,
+    integration_client: TestClient,
+) -> None:
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    tasks = [
+        Task(id=UUID(int=1), input="first", created_at=base, updated_at=base),
+        Task(id=UUID(int=2), input="second", created_at=base, updated_at=base),
+        Task(id=UUID(int=3), input="third", created_at=base, updated_at=base),
+    ]
+    with Session(engine) as session:
+        repository = TaskRepository(session)
+        for task in tasks:
+            repository.save(task)
+
+    first_page = integration_client.get("/api/tasks?limit=2&offset=0")
+    second_page = integration_client.get("/api/tasks?limit=2&offset=2")
+
+    assert first_page.status_code == 200
+    assert second_page.status_code == 200
+    first_ids = [item["id"] for item in first_page.json()["items"]]
+    second_ids = [item["id"] for item in second_page.json()["items"]]
+    assert first_ids == [str(tasks[2].id), str(tasks[1].id)]
+    assert second_ids == [str(tasks[0].id)]
+    assert set(first_ids).isdisjoint(second_ids)

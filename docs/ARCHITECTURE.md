@@ -32,6 +32,12 @@ The API layer handles HTTP request handling, request validation, and response fo
 
 查询接口使用独立的 `TaskQueryResponse` DTO，不直接暴露 ORM Model。
 
+列表查询接口的边界为：
+
+`GET /api/tasks → TaskRepository.list(limit, offset) → Domain Task list → TaskListResponse`
+
+列表分页使用确定性排序：`created_at DESC, id DESC`。
+
 `POST /api/agent/run` 成功响应返回 `task_id + answer`，其中 `task_id` 来自 `TaskExecutionService` 返回的真实 Domain `Task.id`。当前资源闭环为：
 
 `POST /api/agent/run → task_id + answer → GET /api/tasks/{task_id}`
