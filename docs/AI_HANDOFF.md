@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-009 - Task Execution Integration`
+* **Task:** `TASK-010 - Task Query API`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** `TaskExecutionService`; persistent PENDING / RUNNING / SUCCEEDED / FAILED lifecycle; API → Service boundary; request-scoped SQLAlchemy Session; AgentRuntime reuse; failure persistence; primary / secondary failure priority with exception chaining; best-effort persistence semantics
+* **Summary:** `GET /api/tasks/{task_id}`; `TaskQueryResponse`; Repository → Domain → DTO boundary; 404 / 422 semantics; safe task query response; request-scoped Session; PostgreSQL integration test defined but not executed in current environment
 * **Git commit:** `Pending commit`
 
-TASK-009 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-010 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -32,15 +32,15 @@ Review compatibility if the public error hierarchy is formalized later.
 
 ## Non-blocking Notes / 非阻塞说明
 
-* Note: 当前环境无 `DATABASE_URL`，因此 Focused Re-Review 未再次运行 PostgreSQL integration tests；此前 implementation 阶段已完成真实 PostgreSQL 验证。
-* Note: 既有 `StarletteDeprecationWarning` 仍存在，对应 `TD-001`。
+* Note: 当前环境未设置 `DATABASE_URL`，因此 TASK-010 PostgreSQL integration test 本轮未执行。
+* Note: 既有 `StarletteDeprecationWarning` 仍存在，对应已有 `TD-001`。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-010 - Task Query API`
+* **Task:** `TASK-011 - Expose Task ID from Agent Run`
 * **Status:** `Not Started`
 
-TASK-010 尚未开始。
+TASK-011 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 

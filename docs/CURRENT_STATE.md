@@ -101,8 +101,18 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * Agent failure persistence implemented
 * primary / secondary failure priority contract established
 * best-effort lifecycle persistence contract documented
+* TASK-010 - Task Query API
+* single Task Query API established
+* GET /api/tasks/{task_id}
+* Repository boundary preserved
+* independent API Response DTO established
+* UUID / status / timestamp serialization verified
+* missing Task returns 404
+* invalid UUID returns 422
+* safe FAILED task response verified
+* 115 runnable tests passed in current environment
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008 和 TASK-009 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009 和 TASK-010 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -119,8 +129,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-010 - Task Query API
+TASK-011 - Expose Task ID from Agent Run
 
 Status: Not Started
 
-TASK-010 仅表示下一项计划，不代表已经开始执行。
+TASK-011 仅表示下一项计划，不代表已经开始执行。

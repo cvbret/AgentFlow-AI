@@ -26,6 +26,12 @@ The API layer handles HTTP request handling, request validation, and response fo
 
 中文释义：这一层负责把外部 HTTP 请求转换为应用层可以理解的输入，并把结果转换成稳定的 API 响应。它不得承担 Agent 执行循环、工具实现或 LLM 推理逻辑，否则接口协议和运行时行为会耦合在一起，难以测试和演进。
 
+当前已建立单 Task 查询接口：`GET /api/tasks/{task_id}`。查询边界为：
+
+`API → TaskRepository → Domain Task → Response DTO`
+
+查询接口使用独立的 `TaskQueryResponse` DTO，不直接暴露 ORM Model。
+
 ## Task / Application Layer / Task 应用层
 
 The Task Service coordinates the application-level flow for one task. It should connect the API contract to the Agent Runtime without mixing HTTP concerns, database concerns, and raw LLM calls into one function.
