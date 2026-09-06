@@ -154,8 +154,16 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * 4xx/default → non-retryable
 * no automatic retry
 * 140 passed, 24 skipped, 1 warning
+* TASK-016 - Bounded LLM Retry Policy
+* TASK-016 review result: PASS WITH NOTES
+* LLM_MAX_ATTEMPTS established with bounded provider retry
+* retryable=True controls retry
+* non-retryable failures fail fast
+* attempt exhaustion preserves final failure
+* Agent/Task lifecycle unaffected
+* 147 passed, 24 skipped, 1 warning
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014 和 TASK-015 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015 和 TASK-016 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -171,7 +179,7 @@ None currently confirmed.
 
 ## Next / 下一步
 
-Reliability - bounded retry policy
+Reliability - retry timing / backoff policy
 
 Status: Not Started
 

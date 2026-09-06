@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     llm_base_url: str = Field(min_length=1)
     llm_model: str = Field(min_length=1)
     llm_timeout_seconds: float = Field(default=30.0, gt=0)
+    llm_max_attempts: int = Field(default=3, ge=1)
     database_url: str | None = Field(default=None, min_length=1)
 
     @field_validator("llm_timeout_seconds")

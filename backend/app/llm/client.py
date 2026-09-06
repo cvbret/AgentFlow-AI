@@ -65,38 +65,7 @@ class LLMClient:
             "Content-Type": "application/json",
         }
 
-        try:
-            response = self._http_client.post(
-                self.endpoint,
-                headers=headers,
-                json=payload,
-                timeout=self._timeout,
-            )
-            response.raise_for_status()
-        except httpx.TimeoutException as exc:
-            raise LLMProviderError(
-                "LLM provider request timed out",
-                retryable=True,
-            ) from exc
-        except httpx.HTTPStatusError as exc:
-            retryable = (
-                exc.response.status_code == 429
-                or exc.response.status_code >= 500
-            )
-            raise LLMProviderError(
-                f"LLM provider returned HTTP {exc.response.status_code}",
-                retryable=retryable,
-            ) from exc
-        except httpx.NetworkError as exc:
-            raise LLMProviderError(
-                "LLM provider connection failed",
-                retryable=True,
-            ) from exc
-        except httpx.RequestError as exc:
-            raise LLMProviderError(
-                f"LLM provider request failed: {exc}",
-                retryable=False,
-            ) from exc
+        response = self._request_with_retry(headers=headers, payload=payload)
 
         try:
             data: Any = response.json()
@@ -131,6 +100,61 @@ class LLMClient:
             )
 
         return LLMResponse(content=content, tool_calls=tool_calls)
+
+    def _request_with_retry(
+        self,
+        *,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+    ) -> httpx.Response:
+        for attempt in range(self._settings.llm_max_attempts):
+            try:
+                return self._request_once(headers=headers, payload=payload)
+            except LLMProviderError as exc:
+                if not exc.retryable or attempt + 1 >= self._settings.llm_max_attempts:
+                    raise
+
+        raise AssertionError("LLM retry loop exited without a response or error")
+
+    def _request_once(
+        self,
+        *,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+    ) -> httpx.Response:
+        try:
+            response = self._http_client.post(
+                self.endpoint,
+                headers=headers,
+                json=payload,
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise LLMProviderError(
+                "LLM provider request timed out",
+                retryable=True,
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            retryable = 500 <= exc.response.status_code < 600 or (
+                exc.response.status_code == 429
+            )
+            raise LLMProviderError(
+                f"LLM provider returned HTTP {exc.response.status_code}",
+                retryable=retryable,
+            ) from exc
+        except httpx.NetworkError as exc:
+            raise LLMProviderError(
+                "LLM provider connection failed",
+                retryable=True,
+            ) from exc
+        except httpx.RequestError as exc:
+            raise LLMProviderError(
+                f"LLM provider request failed: {exc}",
+                retryable=False,
+            ) from exc
+
+        return response
 
     @staticmethod
     def _serialize_message(message: ChatMessage) -> dict[str, Any]:

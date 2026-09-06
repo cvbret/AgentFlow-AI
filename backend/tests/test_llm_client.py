@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import httpx
 import pytest
 from pydantic import ValidationError
@@ -12,12 +14,13 @@ from app.llm.client import (
 from app.llm.schemas import ChatMessage
 
 
-def make_settings() -> Settings:
+def make_settings(*, max_attempts: int = 3) -> Settings:
     return Settings(
         _env_file=None,
         llm_api_key="test-api-key",
         llm_base_url="https://llm.example.com/v1/",
         llm_model="test-model",
+        llm_max_attempts=max_attempts,
     )
 
 
@@ -28,9 +31,11 @@ def test_settings_validates_and_exposes_llm_timeout() -> None:
         llm_base_url="https://llm.example.com/v1/",
         llm_model="test-model",
         llm_timeout_seconds=12.5,
+        llm_max_attempts=4,
     )
 
     assert settings.llm_timeout_seconds == 12.5
+    assert settings.llm_max_attempts == 4
 
     with pytest.raises(ValidationError):
         Settings(
@@ -50,6 +55,15 @@ def test_settings_validates_and_exposes_llm_timeout() -> None:
             llm_timeout_seconds=float("inf"),
         )
 
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            llm_api_key="test-api-key",
+            llm_base_url="https://llm.example.com/v1/",
+            llm_model="test-model",
+            llm_max_attempts=0,
+        )
+
 
 def test_settings_reads_llm_timeout_from_environment(
     monkeypatch: pytest.MonkeyPatch,
@@ -58,10 +72,12 @@ def test_settings_reads_llm_timeout_from_environment(
     monkeypatch.setenv("LLM_BASE_URL", "https://llm.example.com/v1/")
     monkeypatch.setenv("LLM_MODEL", "test-model")
     monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "4.25")
+    monkeypatch.setenv("LLM_MAX_ATTEMPTS", "5")
 
     settings = Settings(_env_file=None)
 
     assert settings.llm_timeout_seconds == 4.25
+    assert settings.llm_max_attempts == 5
 
 
 def test_chat_sends_openai_compatible_request_and_returns_content() -> None:
@@ -146,6 +162,7 @@ def test_chat_raises_provider_error_for_non_2xx_response() -> None:
         (429, True),
         (500, True),
         (503, True),
+        (600, False),
         (400, False),
         (401, False),
         (403, False),
@@ -164,7 +181,10 @@ def test_chat_classifies_provider_http_failures(
         return httpx.Response(status_code, request=request)
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
-        client = LLMClient(settings=make_settings(), http_client=http_client)
+        client = LLMClient(
+            settings=make_settings(max_attempts=1),
+            http_client=http_client,
+        )
 
         with pytest.raises(LLMProviderError) as raised:
             client.chat([ChatMessage(role="user", content="Hello")])
@@ -188,6 +208,125 @@ def test_chat_classifies_connection_failure_as_retryable() -> None:
     assert isinstance(raised.value.__cause__, httpx.ConnectError)
 
 
+def test_chat_retries_retryable_failure_then_succeeds() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(503, request=request)
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "Recovered"}}]},
+            request=request,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=make_settings(), http_client=http_client)
+
+        result = client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert result.content == "Recovered"
+    assert calls == 2
+
+
+def test_chat_raises_last_retryable_failure_when_attempts_exhausted() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503, request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=make_settings(max_attempts=3), http_client=http_client)
+
+        with pytest.raises(LLMProviderError, match="HTTP 503") as raised:
+            client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert calls == 3
+    assert raised.value.retryable is True
+    assert isinstance(raised.value.__cause__, httpx.HTTPStatusError)
+    assert raised.value.__cause__.response.status_code == 503
+
+
+def test_chat_does_not_retry_non_retryable_failure() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(401, request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=make_settings(max_attempts=3), http_client=http_client)
+
+        with pytest.raises(LLMProviderError, match="HTTP 401") as raised:
+            client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert calls == 1
+    assert raised.value.retryable is False
+
+
+def test_chat_max_attempts_one_does_not_retry_retryable_failure() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503, request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=make_settings(max_attempts=1), http_client=http_client)
+
+        with pytest.raises(LLMProviderError, match="HTTP 503"):
+            client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert calls == 1
+
+
+def test_chat_success_on_first_attempt_makes_one_request() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "Immediate"}}]},
+            request=request,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=make_settings(), http_client=http_client)
+
+        result = client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert result.content == "Immediate"
+    assert calls == 1
+
+
+def test_retry_loop_consumes_project_error_retryable_property() -> None:
+    client = LLMClient(settings=make_settings(max_attempts=2), http_client=Mock())
+    response = httpx.Response(
+        200,
+        json={"choices": [{"message": {"content": "Recovered"}}]},
+    )
+    request_once = Mock(
+        side_effect=[
+            LLMProviderError("transient", retryable=True),
+            response,
+        ]
+    )
+    client._request_once = request_once
+
+    result = client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert result.content == "Recovered"
+    assert request_once.call_count == 2
+
+
 def test_chat_maps_http_timeout_to_provider_error() -> None:
     calls = 0
 
@@ -198,7 +337,10 @@ def test_chat_maps_http_timeout_to_provider_error() -> None:
         raise timeout
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
-        client = LLMClient(settings=make_settings(), http_client=http_client)
+        client = LLMClient(
+            settings=make_settings(max_attempts=1),
+            http_client=http_client,
+        )
 
         with pytest.raises(LLMProviderError, match="timed out") as raised:
             client.chat([ChatMessage(role="user", content="Hello")])

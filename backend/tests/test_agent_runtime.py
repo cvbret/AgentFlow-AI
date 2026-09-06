@@ -20,12 +20,13 @@ from app.tools.implementations.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
 
 
-def make_settings() -> Settings:
+def make_settings(*, max_attempts: int = 3) -> Settings:
     return Settings(
         _env_file=None,
         llm_api_key="test-api-key",
         llm_base_url="https://llm.example.com/v1",
         llm_model="test-model",
+        llm_max_attempts=max_attempts,
     )
 
 
@@ -64,6 +65,7 @@ def make_runtime(
     *,
     status_code: int = 200,
     max_steps: int = 5,
+    max_attempts: int = 3,
     calculator: CalculatorTool | None = None,
 ) -> AgentRuntime:
     def handler(request: httpx.Request) -> httpx.Response:
@@ -73,7 +75,10 @@ def make_runtime(
         return httpx.Response(status_code, json=response, request=request)
 
     http_client = httpx.Client(transport=httpx.MockTransport(handler))
-    client = LLMClient(settings=make_settings(), http_client=http_client)
+    client = LLMClient(
+        settings=make_settings(max_attempts=max_attempts),
+        http_client=http_client,
+    )
     return AgentRuntime(
         client,
         make_registry(calculator),
@@ -255,6 +260,7 @@ def test_runtime_propagates_provider_errors() -> None:
     runtime = make_runtime(
         [{"error": "unavailable"}],
         status_code=503,
+        max_attempts=1,
     )
 
     with pytest.raises(LLMProviderError, match="HTTP 503"):

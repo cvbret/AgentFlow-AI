@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-015 - LLM Failure Classification Foundation`
+* **Task:** `TASK-016 - Bounded LLM Retry Policy`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** `LLMProviderError.retryable`; timeout/network failures retryable; HTTP 429/5xx retryable; HTTP 4xx/default failures non-retryable; exception chaining preserved; no automatic retry; 140 passed, 24 skipped, 1 warning
+* **Summary:** `LLM_MAX_ATTEMPTS` default `3`; bounded provider retry; `retryable=True` controls retry; non-retryable fail-fast; attempt exhaustion preserves final failure; Agent/Task lifecycle unaffected; 147 passed, 24 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-015 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-016 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -32,13 +32,13 @@ Review compatibility if the public error hierarchy is formalized later.
 
 ## Non-blocking Notes / 非阻塞说明
 
-* Note: 当前环境无 `DATABASE_URL`，因此 PostgreSQL integration tests 未执行。
-* Note: 当前 HTTP retryable 判断使用 `status_code >= 500`，理论上非标准 `600+` 状态码也会被标记为 retryable；后续 bounded retry policy 可再评估收紧范围。
+* Note: Pydantic 对部分 integer-compatible 输入存在 coercion，例如 `3.0 → 3`、`True → 1`；当前作为 Review NOTE 保留，未升级为 Technical Debt。
+* Note: 当前环境无 `DATABASE_URL`，因此 24 个 PostgreSQL integration tests 未执行。
 * Note: 既有 `StarletteDeprecationWarning` 仍存在，对应 `TD-001`。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Reliability - bounded retry policy`
+* **Task:** `Reliability - retry timing / backoff policy`
 * **Status:** `Not Started`
 
 当前尚未定义为具体 Task，暂不开始执行。
@@ -56,9 +56,10 @@ Review compatibility if the public error hierarchy is formalized later.
 * Agent execution 后期必须有 bounded loop / failure handling。
 * 不为了“企业级”而提前制造无需求的 abstraction。
 * AI coding agents must not write outside `E:\AIProjects\AgentFlow-AI`。
-* Reliability Foundation 当前已建立 explicit bounded LLM request timeout。
-* TASK-015 已建立 failure classification / retryable signal。
-* Automatic retry、bounded attempts、backoff、Retry-After 和 jitter 尚未建立。
+* TASK-014：explicit bounded LLM request timeout。
+* TASK-015：failure classification / retryable signal。
+* TASK-016：bounded retry / `max_attempts`。
+* Backoff、jitter、Retry-After 和 retry timing policy 尚未建立。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 
