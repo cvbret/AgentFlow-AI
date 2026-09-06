@@ -129,8 +129,17 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * TaskListResponse established
 * Domain / DTO boundary preserved
 * 123 runnable tests passed in current environment
+* TASK-013 - Task Status Filtering
+* optional task status filtering established
+* GET /api/tasks?status=...
+* SQL-level status filtering established
+* supported values: pending / running / succeeded / failed
+* filter + deterministic ordering + pagination composition verified
+* invalid status returns 422
+* TaskRepository collection query extended without breaking default listing
+* 128 runnable tests passed in current environment
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011 和 TASK-012 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012 和 TASK-013 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -147,8 +156,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-013 - Task Status Filtering
+TASK-014 - Reliability Foundation
 
 Status: Not Started
 
-TASK-013 仅表示下一项计划，不代表已经开始执行。
+TASK-014 仅表示下一项计划，不代表已经开始执行。

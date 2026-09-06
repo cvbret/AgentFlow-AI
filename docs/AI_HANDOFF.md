@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-012 - Task Listing API`
+* **Task:** `TASK-013 - Task Status Filtering`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** `GET /api/tasks`; `TaskRepository.list(limit, offset)`; SQL LIMIT / OFFSET; deterministic ordering; `TaskListResponse`; `TaskQueryResponse` reuse; single-task query and Agent Run regression preserved; PostgreSQL pagination integration test defined but not executed in current environment
+* **Summary:** optional status filter; SQL-level WHERE filtering; `TaskStatus` mapping; filter before pagination; deterministic ordering preserved; default list behavior preserved; existing Agent Run / single Task Query regression preserved; PostgreSQL integration test defined but not executed in current environment
 * **Git commit:** `Pending commit`
 
-TASK-012 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-013 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -32,16 +32,16 @@ Review compatibility if the public error hierarchy is formalized later.
 
 ## Non-blocking Notes / 非阻塞说明
 
-* Note: 当前环境无 `DATABASE_URL`，因此 TASK-012 PostgreSQL pagination integration tests 未执行。
-* Note: `TASK-012.md` 规格文档偏长，但内容仍集中于当前任务，不阻塞。
+* Note: 当前环境无 `DATABASE_URL`，因此 TASK-013 PostgreSQL status-filter integration tests 未执行。
+* Note: `TASK-013.md` 规格文档偏长，但内容仍集中于当前任务。
 * Note: 既有 `StarletteDeprecationWarning` 仍存在，对应已有 `TD-001`。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-013 - Task Status Filtering`
+* **Task:** `TASK-014 - Reliability Foundation`
 * **Status:** `Not Started`
 
-TASK-013 尚未开始。
+TASK-014 尚未开始。
 
 ## Important Architecture Constraints / 当前重要架构约束
 

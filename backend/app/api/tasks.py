@@ -1,10 +1,11 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app.tasks.models import Task
+from app.tasks.models import Task, TaskStatus
 from app.tasks.repository import TaskRepository
 from app.api.dependencies import get_task_repository
 
@@ -37,6 +38,9 @@ class TaskListResponse(BaseModel):
     offset: int
 
 
+TaskStatusQuery = Literal["pending", "running", "succeeded", "failed"]
+
+
 router = APIRouter()
 
 
@@ -44,9 +48,17 @@ router = APIRouter()
 def list_tasks(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    status: TaskStatusQuery = Query(default=None),
     repository: TaskRepository = Depends(get_task_repository),
 ) -> TaskListResponse:
-    tasks = repository.list(limit=limit, offset=offset)
+    if status is None:
+        tasks = repository.list(limit=limit, offset=offset)
+    else:
+        tasks = repository.list(
+            limit=limit,
+            offset=offset,
+            status=TaskStatus(status.upper()),
+        )
     return TaskListResponse(
         items=[TaskQueryResponse.from_domain(task) for task in tasks],
         limit=limit,

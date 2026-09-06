@@ -130,6 +130,19 @@ def _listing_task(index: int, created_at: datetime) -> Task:
     )
 
 
+def _task_with_status(index: int, created_at: datetime, status: TaskStatus) -> Task:
+    task = _listing_task(index, created_at)
+    if status is TaskStatus.RUNNING:
+        task.start(now=created_at)
+    elif status is TaskStatus.SUCCEEDED:
+        task.start(now=created_at)
+        task.succeed(f"result-{index}", now=created_at)
+    elif status is TaskStatus.FAILED:
+        task.start(now=created_at)
+        task.fail(f"error-{index}", now=created_at)
+    return task
+
+
 def test_list_returns_empty_list_when_no_tasks_exist(session: Session) -> None:
     assert TaskRepository(session).list(20, 0) == []
 
@@ -172,6 +185,65 @@ def test_list_pages_do_not_duplicate_tasks(session: Session) -> None:
 
     assert {task.id for task in first_page}.isdisjoint({task.id for task in second_page})
     assert len(first_page) + len(second_page) == 3
+
+
+def test_list_without_status_returns_tasks_in_all_states(session: Session) -> None:
+    repository = TaskRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    tasks = [
+        _task_with_status(11, base, TaskStatus.PENDING),
+        _task_with_status(12, base, TaskStatus.RUNNING),
+        _task_with_status(13, base, TaskStatus.SUCCEEDED),
+        _task_with_status(14, base, TaskStatus.FAILED),
+    ]
+    for task in tasks:
+        repository.save(task)
+
+    result = repository.list(20, 0, None)
+
+    assert {task.status for task in result} == set(TaskStatus)
+
+
+def test_list_filters_failed_tasks_in_sql_query(session: Session) -> None:
+    repository = TaskRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    tasks = [
+        _task_with_status(21, base, TaskStatus.FAILED),
+        _task_with_status(22, base, TaskStatus.SUCCEEDED),
+        _task_with_status(23, base, TaskStatus.FAILED),
+    ]
+    for task in tasks:
+        repository.save(task)
+
+    result = repository.list(20, 0, TaskStatus.FAILED)
+
+    assert [task.id for task in result] == [UUID(int=23), UUID(int=21)]
+    assert all(task.status is TaskStatus.FAILED for task in result)
+
+
+def test_list_filters_succeeded_tasks(session: Session) -> None:
+    repository = TaskRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    for index, status in ((31, TaskStatus.SUCCEEDED), (32, TaskStatus.FAILED)):
+        repository.save(_task_with_status(index, base, status))
+
+    result = repository.list(20, 0, TaskStatus.SUCCEEDED)
+
+    assert [task.id for task in result] == [UUID(int=31)]
+    assert result[0].status is TaskStatus.SUCCEEDED
+
+
+def test_list_applies_limit_and_offset_after_status_filter(session: Session) -> None:
+    repository = TaskRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    for index in (41, 42, 43):
+        repository.save(_task_with_status(index, base, TaskStatus.FAILED))
+    repository.save(_task_with_status(44, base, TaskStatus.SUCCEEDED))
+
+    result = repository.list(1, 1, TaskStatus.FAILED)
+
+    assert [task.id for task in result] == [UUID(int=42)]
+    assert result[0].status is TaskStatus.FAILED
 
 
 def test_multiple_tasks_remain_independent(session: Session) -> None:

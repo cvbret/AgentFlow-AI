@@ -38,6 +38,12 @@ The API layer handles HTTP request handling, request validation, and response fo
 
 列表分页使用确定性排序：`created_at DESC, id DESC`。
 
+列表接口支持可选的单一 status filter。查询顺序为：
+
+`GET /api/tasks → optional status filter → TaskRepository.list(...) → SQL WHERE → deterministic ordering → limit / offset → TaskListResponse`
+
+允许的 status 值为 `pending`、`running`、`succeeded` 和 `failed`。
+
 `POST /api/agent/run` 成功响应返回 `task_id + answer`，其中 `task_id` 来自 `TaskExecutionService` 返回的真实 Domain `Task.id`。当前资源闭环为：
 
 `POST /api/agent/run → task_id + answer → GET /api/tasks/{task_id}`

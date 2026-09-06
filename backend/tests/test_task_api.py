@@ -168,6 +168,79 @@ def test_list_tasks_response_has_no_total_field(client: TestClient, repository: 
     assert set(response.json()) == {"items", "limit", "offset"}
 
 
+def test_list_tasks_accepts_failed_status(client: TestClient, repository: Mock) -> None:
+    repository.list.return_value = []
+
+    response = client.get("/api/tasks?status=failed")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "limit": 20, "offset": 0}
+    repository.list.assert_called_once_with(
+        limit=20,
+        offset=0,
+        status=TaskStatus.FAILED,
+    )
+
+
+def test_list_tasks_accepts_succeeded_status(client: TestClient, repository: Mock) -> None:
+    repository.list.return_value = []
+
+    response = client.get("/api/tasks?status=succeeded")
+
+    assert response.status_code == 200
+    repository.list.assert_called_once_with(
+        limit=20,
+        offset=0,
+        status=TaskStatus.SUCCEEDED,
+    )
+
+
+def test_list_tasks_rejects_unknown_status(client: TestClient, repository: Mock) -> None:
+    response = client.get("/api/tasks?status=unknown")
+
+    assert response.status_code == 422
+    repository.list.assert_not_called()
+
+
+def test_list_tasks_passes_status_and_pagination(client: TestClient, repository: Mock) -> None:
+    repository.list.return_value = []
+
+    response = client.get("/api/tasks?status=failed&limit=2&offset=1")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "limit": 2, "offset": 1}
+    repository.list.assert_called_once_with(
+        limit=2,
+        offset=1,
+        status=TaskStatus.FAILED,
+    )
+
+
+def test_list_tasks_returns_empty_filtered_result(client: TestClient, repository: Mock) -> None:
+    repository.list.return_value = []
+
+    response = client.get("/api/tasks?status=failed")
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
+def _task_with_status(task_id: UUID, status: TaskStatus, created_at: datetime) -> Task:
+    task = Task(
+        id=task_id,
+        input=f"task-{task_id.int}",
+        created_at=created_at,
+        updated_at=created_at,
+    )
+    if status is TaskStatus.SUCCEEDED:
+        task.start(now=created_at)
+        task.succeed("done", now=created_at)
+    elif status is TaskStatus.FAILED:
+        task.start(now=created_at)
+        task.fail("failed", now=created_at)
+    return task
+
+
 @pytest.fixture(scope="session")
 def database_url() -> str:
     value = os.environ.get("DATABASE_URL")
@@ -258,3 +331,47 @@ def test_list_tasks_reads_paginated_data_from_postgresql(
     assert first_ids == [str(tasks[2].id), str(tasks[1].id)]
     assert second_ids == [str(tasks[0].id)]
     assert set(first_ids).isdisjoint(second_ids)
+
+
+def test_list_tasks_filters_status_in_postgresql(
+    engine: Engine,
+    integration_client: TestClient,
+) -> None:
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    failed_tasks = [
+        _task_with_status(UUID(int=101), TaskStatus.FAILED, base),
+        _task_with_status(UUID(int=102), TaskStatus.FAILED, base),
+        _task_with_status(UUID(int=103), TaskStatus.FAILED, base),
+    ]
+    succeeded_task = _task_with_status(UUID(int=104), TaskStatus.SUCCEEDED, base)
+    with Session(engine) as session:
+        repository = TaskRepository(session)
+        for task in [*failed_tasks, succeeded_task]:
+            repository.save(task)
+
+    failed_first_page = integration_client.get(
+        "/api/tasks?status=failed&limit=2&offset=0"
+    )
+    failed_second_page = integration_client.get(
+        "/api/tasks?status=failed&limit=2&offset=2"
+    )
+    succeeded_page = integration_client.get("/api/tasks?status=succeeded")
+
+    assert failed_first_page.status_code == 200
+    assert failed_second_page.status_code == 200
+    assert succeeded_page.status_code == 200
+    assert [item["id"] for item in failed_first_page.json()["items"]] == [
+        str(failed_tasks[2].id),
+        str(failed_tasks[1].id),
+    ]
+    assert [item["id"] for item in failed_second_page.json()["items"]] == [
+        str(failed_tasks[0].id)
+    ]
+    assert all(
+        item["status"] == "failed"
+        for item in failed_first_page.json()["items"]
+        + failed_second_page.json()["items"]
+    )
+    assert [item["id"] for item in succeeded_page.json()["items"]] == [
+        str(succeeded_task.id)
+    ]

@@ -37,13 +37,21 @@ class TaskRepository:
             return None
         return self._to_domain(record)
 
-    def list(self, limit: int, offset: int) -> list[Task]:
-        records = self._session.scalars(
-            select(TaskRecord)
-            .order_by(TaskRecord.created_at.desc(), TaskRecord.id.desc())
+    def list(
+        self,
+        limit: int,
+        offset: int,
+        status: TaskStatus | None = None,
+    ) -> list[Task]:
+        query = select(TaskRecord)
+        if status is not None:
+            query = query.where(TaskRecord.status == status.value)
+        query = (
+            query.order_by(TaskRecord.created_at.desc(), TaskRecord.id.desc())
             .offset(offset)
             .limit(limit)
-        ).all()
+        )
+        records = self._session.scalars(query).all()
         return [self._to_domain(record) for record in records]
 
     @staticmethod
