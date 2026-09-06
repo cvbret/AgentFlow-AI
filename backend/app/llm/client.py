@@ -29,6 +29,7 @@ class LLMClient:
         http_client: httpx.Client | None = None,
     ) -> None:
         self._settings = settings or get_settings()
+        self._timeout = httpx.Timeout(self._settings.llm_timeout_seconds)
 
         self._owns_http_client = http_client is None
         self._http_client = (
@@ -65,8 +66,11 @@ class LLMClient:
                 self.endpoint,
                 headers=headers,
                 json=payload,
+                timeout=self._timeout,
             )
             response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise LLMProviderError("LLM provider request timed out") from exc
         except httpx.HTTPStatusError as exc:
             raise LLMProviderError(
                 f"LLM provider returned HTTP {exc.response.status_code}"

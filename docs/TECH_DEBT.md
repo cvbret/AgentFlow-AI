@@ -91,30 +91,31 @@ Low
 
 ## TD-003 - LLM HTTP timeout is not explicitly configured
 
+**Status:** `Closed`
+
+**Resolved by:** `TASK-014 - Reliability Foundation / LLM Request Timeout Foundation`
+
 ### Current Situation / 当前情况
 
-`LLMClient` 当前使用 HTTPX 默认 timeout。
+TASK-002 时 `LLMClient` 使用 HTTPX 默认 timeout，未形成明确的 AgentFlow-AI 运行契约。
 
-Reviewer 验证当前默认值有限，不会无限等待，但该行为不是 AgentFlow-AI 明确配置的运行契约。
+该问题已由 TASK-014 解决：当前已有显式 `LLM_TIMEOUT_SECONDS` 配置，默认值为 `30.0`，并在每次 HTTP request 中应用 `httpx.Timeout`。
 
 ### Reason Accepted / 接受原因
 
-TASK-002 目标是建立最小 LLM Client abstraction。
+TASK-002 目标是建立最小 LLM Client abstraction，因此当时接受该配置缺口。
 
-统一 timeout、retry 和 failure policy 属于后续 Reliability 阶段。
+该接受原因仅保留作为历史上下文；TASK-014 已完成 timeout foundation。
 
 ### Risk / 风险
 
-未来 dependency 默认值变化、不同 Tool / Provider 对 timeout 要求不同、timeout 错误分类不统一，可能造成运行行为不明确。
+TASK-014 已消除隐式 timeout 风险。Retry policy、retryable vs non-retryable classification 和 backoff 仍属于后续 Reliability capability，不再作为 TD-003 的未完成项。
 
 ### Resolution Plan / 解决计划
 
-在 Reliability 阶段：
+已由 TASK-014 完成：显式 timeout configuration、默认值、输入 validation、per-request timeout application、timeout error mapping 及 automated tests。
 
-* 显式定义 LLM timeout 配置
-* 建立 timeout error classification
-* 增加对应测试
-* 与 retry policy 一起设计
+后续 retry / backoff / failure classification 应作为独立 Reliability capability 设计，不属于 TD-003。
 
 ### Priority / 优先级
 

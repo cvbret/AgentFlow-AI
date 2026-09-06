@@ -138,8 +138,16 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * invalid status returns 422
 * TaskRepository collection query extended without breaking default listing
 * 128 runnable tests passed in current environment
+* TASK-014 - Reliability Foundation / LLM Request Timeout Foundation
+* TASK-014 review result: PASS WITH NOTES
+* explicit configurable LLM timeout established
+* per-request httpx timeout applied
+* TimeoutException mapped to LLMProviderError
+* LLM client ownership preserved
+* retry not yet implemented
+* 132 tests passed
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012 和 TASK-013 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013 和 TASK-014 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -151,13 +159,12 @@ None currently confirmed.
 
 * TD-001 - TestClient dependency deprecation warning
 * TD-002 - Backend working-directory dependency
-* TD-003 - LLM HTTP timeout is not explicitly configured
 * TD-004 - Calculator accepts non-finite and boolean numeric inputs
 
 ## Next / 下一步
 
-TASK-014 - Reliability Foundation
+Reliability - failure classification / retry policy foundation
 
 Status: Not Started
 
-TASK-014 仅表示下一项计划，不代表已经开始执行。
+当前尚未定义为具体 Task，暂不开始执行。

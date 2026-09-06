@@ -1,7 +1,8 @@
+import math
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +24,15 @@ class Settings(BaseSettings):
     llm_api_key: str = Field(min_length=1)
     llm_base_url: str = Field(min_length=1)
     llm_model: str = Field(min_length=1)
+    llm_timeout_seconds: float = Field(default=30.0, gt=0)
     database_url: str | None = Field(default=None, min_length=1)
+
+    @field_validator("llm_timeout_seconds")
+    @classmethod
+    def validate_llm_timeout_seconds(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("llm_timeout_seconds must be finite")
+        return value
 
 
 @lru_cache

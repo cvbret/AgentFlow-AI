@@ -21,6 +21,49 @@ def make_settings() -> Settings:
     )
 
 
+def test_settings_validates_and_exposes_llm_timeout() -> None:
+    settings = Settings(
+        _env_file=None,
+        llm_api_key="test-api-key",
+        llm_base_url="https://llm.example.com/v1/",
+        llm_model="test-model",
+        llm_timeout_seconds=12.5,
+    )
+
+    assert settings.llm_timeout_seconds == 12.5
+
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            llm_api_key="test-api-key",
+            llm_base_url="https://llm.example.com/v1/",
+            llm_model="test-model",
+            llm_timeout_seconds=0,
+        )
+
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            llm_api_key="test-api-key",
+            llm_base_url="https://llm.example.com/v1/",
+            llm_model="test-model",
+            llm_timeout_seconds=float("inf"),
+        )
+
+
+def test_settings_reads_llm_timeout_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_API_KEY", "test-api-key")
+    monkeypatch.setenv("LLM_BASE_URL", "https://llm.example.com/v1/")
+    monkeypatch.setenv("LLM_MODEL", "test-model")
+    monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "4.25")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.llm_timeout_seconds == 4.25
+
+
 def test_chat_sends_openai_compatible_request_and_returns_content() -> None:
     captured: dict[str, object] = {}
 
@@ -56,6 +99,36 @@ def test_chat_sends_openai_compatible_request_and_returns_content() -> None:
     assert result.tool_calls == []
 
 
+def test_chat_applies_explicit_timeout_to_http_request() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["timeout"] = request.extensions["timeout"]
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "Hello"}}]},
+            request=request,
+        )
+
+    settings = Settings(
+        _env_file=None,
+        llm_api_key="test-api-key",
+        llm_base_url="https://llm.example.com/v1",
+        llm_model="test-model",
+        llm_timeout_seconds=7.5,
+    )
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=settings, http_client=http_client)
+        client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert captured["timeout"] == {
+        "connect": 7.5,
+        "read": 7.5,
+        "write": 7.5,
+        "pool": 7.5,
+    }
+
+
 def test_chat_raises_provider_error_for_non_2xx_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"error": "unauthorized"}, request=request)
@@ -65,6 +138,20 @@ def test_chat_raises_provider_error_for_non_2xx_response() -> None:
 
         with pytest.raises(LLMProviderError, match="HTTP 401"):
             client.chat([ChatMessage(role="user", content="Hello")])
+
+
+def test_chat_maps_http_timeout_to_provider_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        timeout = httpx.ReadTimeout("provider timed out", request=request)
+        raise timeout
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=make_settings(), http_client=http_client)
+
+        with pytest.raises(LLMProviderError, match="timed out") as raised:
+            client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert isinstance(raised.value.__cause__, httpx.TimeoutException)
 
 
 def test_chat_raises_clear_error_for_invalid_response_structure() -> None:

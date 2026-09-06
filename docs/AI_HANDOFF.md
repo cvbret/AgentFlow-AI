@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-013 - Task Status Filtering`
+* **Task:** `TASK-014 - Reliability Foundation / LLM Request Timeout Foundation`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** optional status filter; SQL-level WHERE filtering; `TaskStatus` mapping; filter before pagination; deterministic ordering preserved; default list behavior preserved; existing Agent Run / single Task Query regression preserved; PostgreSQL integration test defined but not executed in current environment
+* **Summary:** explicit configurable LLM timeout; `LLM_TIMEOUT_SECONDS` default `30.0`; per-request `httpx.Timeout`; `httpx.TimeoutException` mapped to `LLMProviderError`; HTTP client ownership preserved; no retry yet; 132 tests passed
 * **Git commit:** `Pending commit`
 
-TASK-013 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-014 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -32,16 +32,14 @@ Review compatibility if the public error hierarchy is formalized later.
 
 ## Non-blocking Notes / 非阻塞说明
 
-* Note: 当前环境无 `DATABASE_URL`，因此 TASK-013 PostgreSQL status-filter integration tests 未执行。
-* Note: `TASK-013.md` 规格文档偏长，但内容仍集中于当前任务。
-* Note: 既有 `StarletteDeprecationWarning` 仍存在，对应已有 `TD-001`。
+* Note: 当前环境无 `DATABASE_URL`，因此 PostgreSQL integration tests 未执行。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-014 - Reliability Foundation`
+* **Task:** `Reliability - failure classification / retry policy foundation`
 * **Status:** `Not Started`
 
-TASK-014 尚未开始。
+当前尚未定义为具体 Task，暂不开始执行。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -56,6 +54,8 @@ TASK-014 尚未开始。
 * Agent execution 后期必须有 bounded loop / failure handling。
 * 不为了“企业级”而提前制造无需求的 abstraction。
 * AI coding agents must not write outside `E:\AIProjects\AgentFlow-AI`。
+* Reliability Foundation 当前已建立 explicit bounded LLM request timeout。
+* Retry policy、retryable vs non-retryable classification 和 backoff 尚未建立。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 
@@ -145,7 +145,7 @@ Task Definition
 
 * `TD-001` — TestClient dependency deprecation warning
 * `TD-002` — Backend working-directory dependency
-* `TD-003` — LLM HTTP timeout is not explicitly configured
+* `TD-003` — LLM HTTP timeout is not explicitly configured (Closed by TASK-014)
 * `TD-004` — Calculator accepts non-finite and boolean numeric inputs
 
 这里只做摘要；详细信息仍以 `docs/TECH_DEBT.md` 为 Source of Truth。
