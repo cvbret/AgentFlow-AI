@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-014 - Reliability Foundation / LLM Request Timeout Foundation`
+* **Task:** `TASK-015 - LLM Failure Classification Foundation`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** explicit configurable LLM timeout; `LLM_TIMEOUT_SECONDS` default `30.0`; per-request `httpx.Timeout`; `httpx.TimeoutException` mapped to `LLMProviderError`; HTTP client ownership preserved; no retry yet; 132 tests passed
+* **Summary:** `LLMProviderError.retryable`; timeout/network failures retryable; HTTP 429/5xx retryable; HTTP 4xx/default failures non-retryable; exception chaining preserved; no automatic retry; 140 passed, 24 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-014 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-015 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -33,10 +33,12 @@ Review compatibility if the public error hierarchy is formalized later.
 ## Non-blocking Notes / 非阻塞说明
 
 * Note: 当前环境无 `DATABASE_URL`，因此 PostgreSQL integration tests 未执行。
+* Note: 当前 HTTP retryable 判断使用 `status_code >= 500`，理论上非标准 `600+` 状态码也会被标记为 retryable；后续 bounded retry policy 可再评估收紧范围。
+* Note: 既有 `StarletteDeprecationWarning` 仍存在，对应 `TD-001`。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Reliability - failure classification / retry policy foundation`
+* **Task:** `Reliability - bounded retry policy`
 * **Status:** `Not Started`
 
 当前尚未定义为具体 Task，暂不开始执行。
@@ -55,7 +57,8 @@ Review compatibility if the public error hierarchy is formalized later.
 * 不为了“企业级”而提前制造无需求的 abstraction。
 * AI coding agents must not write outside `E:\AIProjects\AgentFlow-AI`。
 * Reliability Foundation 当前已建立 explicit bounded LLM request timeout。
-* Retry policy、retryable vs non-retryable classification 和 backoff 尚未建立。
+* TASK-015 已建立 failure classification / retryable signal。
+* Automatic retry、bounded attempts、backoff、Retry-After 和 jitter 尚未建立。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

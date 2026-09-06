@@ -17,6 +17,10 @@ class LLMClientError(RuntimeError):
 class LLMProviderError(LLMClientError):
     """Raised when the provider request fails or returns a non-2xx status."""
 
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
 
 class InvalidLLMResponseError(LLMClientError):
     """Raised when the provider response is not in the expected shape."""
@@ -70,13 +74,29 @@ class LLMClient:
             )
             response.raise_for_status()
         except httpx.TimeoutException as exc:
-            raise LLMProviderError("LLM provider request timed out") from exc
-        except httpx.HTTPStatusError as exc:
             raise LLMProviderError(
-                f"LLM provider returned HTTP {exc.response.status_code}"
+                "LLM provider request timed out",
+                retryable=True,
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            retryable = (
+                exc.response.status_code == 429
+                or exc.response.status_code >= 500
+            )
+            raise LLMProviderError(
+                f"LLM provider returned HTTP {exc.response.status_code}",
+                retryable=retryable,
+            ) from exc
+        except httpx.NetworkError as exc:
+            raise LLMProviderError(
+                "LLM provider connection failed",
+                retryable=True,
             ) from exc
         except httpx.RequestError as exc:
-            raise LLMProviderError(f"LLM provider request failed: {exc}") from exc
+            raise LLMProviderError(
+                f"LLM provider request failed: {exc}",
+                retryable=False,
+            ) from exc
 
         try:
             data: Any = response.json()

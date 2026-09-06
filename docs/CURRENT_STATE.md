@@ -146,8 +146,16 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * LLM client ownership preserved
 * retry not yet implemented
 * 132 tests passed
+* TASK-015 - LLM Failure Classification Foundation
+* TASK-015 review result: PASS WITH NOTES
+* LLMProviderError.retryable established
+* timeout/network → retryable
+* 429/5xx → retryable
+* 4xx/default → non-retryable
+* no automatic retry
+* 140 passed, 24 skipped, 1 warning
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013 和 TASK-014 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014 和 TASK-015 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -163,7 +171,7 @@ None currently confirmed.
 
 ## Next / 下一步
 
-Reliability - failure classification / retry policy foundation
+Reliability - bounded retry policy
 
 Status: Not Started
 

@@ -140,8 +140,60 @@ def test_chat_raises_provider_error_for_non_2xx_response() -> None:
             client.chat([ChatMessage(role="user", content="Hello")])
 
 
-def test_chat_maps_http_timeout_to_provider_error() -> None:
+@pytest.mark.parametrize(
+    ("status_code", "retryable"),
+    [
+        (429, True),
+        (500, True),
+        (503, True),
+        (400, False),
+        (401, False),
+        (403, False),
+        (404, False),
+    ],
+)
+def test_chat_classifies_provider_http_failures(
+    status_code: int,
+    retryable: bool,
+) -> None:
+    calls = 0
+
     def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(status_code, request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=make_settings(), http_client=http_client)
+
+        with pytest.raises(LLMProviderError) as raised:
+            client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert raised.value.retryable is retryable
+    assert isinstance(raised.value.__cause__, httpx.HTTPStatusError)
+    assert calls == 1
+
+
+def test_chat_classifies_connection_failure_as_retryable() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection failed", request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        client = LLMClient(settings=make_settings(), http_client=http_client)
+
+        with pytest.raises(LLMProviderError, match="connection failed") as raised:
+            client.chat([ChatMessage(role="user", content="Hello")])
+
+    assert raised.value.retryable is True
+    assert isinstance(raised.value.__cause__, httpx.ConnectError)
+
+
+def test_chat_maps_http_timeout_to_provider_error() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         timeout = httpx.ReadTimeout("provider timed out", request=request)
         raise timeout
 
@@ -152,6 +204,8 @@ def test_chat_maps_http_timeout_to_provider_error() -> None:
             client.chat([ChatMessage(role="user", content="Hello")])
 
     assert isinstance(raised.value.__cause__, httpx.TimeoutException)
+    assert raised.value.retryable is True
+    assert calls == 1
 
 
 def test_chat_raises_clear_error_for_invalid_response_structure() -> None:
