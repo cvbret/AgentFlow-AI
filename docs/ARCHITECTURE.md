@@ -54,6 +54,12 @@ The Task Service coordinates the application-level flow for one task. It should 
 
 中文释义：Task Service 负责协调“一次任务”的应用逻辑，例如接收任务、调用 Runtime、整理结果和处理应用层状态。它不是所有逻辑的收容所；HTTP、数据库和 LLM 的具体细节应由各自边界负责。
 
+## Approval Domain / Approval 领域
+
+`Approval` 是独立于 `TaskStatus` 的 Domain Entity，用于表示某一次 protected ToolCall 的人工决策；`Task` 表示整个 Agent execution。一个 Task 概念上可关联多个 Approval，但本阶段不提前定义 ORM 或 database relationship。
+
+新 Approval 只能以 `PENDING` 创建；历史实体通过独立的 `Approval.restore(...)` 路径受控恢复。`APPROVED` 和 `REJECTED` 是 terminal states。
+
 ## Agent Runtime / Agent Runtime 层
 
 The Agent Runtime is responsible for:

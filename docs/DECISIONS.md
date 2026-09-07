@@ -46,3 +46,25 @@ The initial Agent Runtime will use direct Python code and an LLM API. LangChain 
 ### Revisit Trigger
 
 Revisit this decision when explicit workflow states and transitions create a demonstrated orchestration problem that a framework can solve without obscuring required runtime behavior.
+
+## ADR-002 - Model Approval as a separate domain entity
+
+**Status:** Accepted
+
+### Context
+
+An Approval represents a human decision for one protected ToolCall, while a Task represents the lifecycle of the overall Agent execution. Embedding approval state into `TaskStatus` would conflate two different domain concerns.
+
+### Decision
+
+Model `Approval` as an independent domain entity associated conceptually with a `Task` and a protected ToolCall. New entity creation and persistence rehydration use separate domain paths: new Approval instances start in `PENDING`, while historical states are restored through `Approval.restore(...)`.
+
+### Consequences
+
+* Task lifecycle and approval decision lifecycle remain independently explicit.
+* A Task can conceptually have multiple Approval records.
+* Approval persistence, API exposure, pause/resume, and post-approval Tool execution remain separate future capabilities.
+
+### Revisit Trigger
+
+Revisit this decision only if a demonstrated workflow or persistence requirement shows that the independent Approval boundary no longer represents the domain accurately.
