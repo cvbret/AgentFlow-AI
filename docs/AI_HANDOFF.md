@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-016 - Bounded LLM Retry Policy`
+* **Task:** `TASK-017 - LLM Retry Timing Policy`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** `LLM_MAX_ATTEMPTS` default `3`; bounded provider retry; `retryable=True` controls retry; non-retryable fail-fast; attempt exhaustion preserves final failure; Agent/Task lifecycle unaffected; 147 passed, 24 skipped, 1 warning
+* **Summary:** configurable retry base delay; exponential backoff; bounded additive jitter; injectable sleeper/jitter for deterministic tests; no final-attempt sleep; Agent/Task lifecycle unaffected; 147 passed, 24 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-016 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-017 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -32,13 +32,13 @@ Review compatibility if the public error hierarchy is formalized later.
 
 ## Non-blocking Notes / 非阻塞说明
 
-* Note: Pydantic 对部分 integer-compatible 输入存在 coercion，例如 `3.0 → 3`、`True → 1`；当前作为 Review NOTE 保留，未升级为 Technical Debt。
+* Note: 既有 `TD-001 / StarletteDeprecationWarning`。
 * Note: 当前环境无 `DATABASE_URL`，因此 24 个 PostgreSQL integration tests 未执行。
-* Note: 既有 `StarletteDeprecationWarning` 仍存在，对应 `TD-001`。
+* Note: `LLM_MAX_ATTEMPTS` 仍采用 Pydantic 一般 numeric coercion，例如部分可转换值可能被接受；不阻塞当前 Reliability Foundation，未升级为 Technical Debt。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Reliability - retry timing / backoff policy`
+* **Task:** `Reliability - idempotency / side-effect control foundation`
 * **Status:** `Not Started`
 
 当前尚未定义为具体 Task，暂不开始执行。
@@ -59,7 +59,9 @@ Review compatibility if the public error hierarchy is formalized later.
 * TASK-014：explicit bounded LLM request timeout。
 * TASK-015：failure classification / retryable signal。
 * TASK-016：bounded retry / `max_attempts`。
-* Backoff、jitter、Retry-After 和 retry timing policy 尚未建立。
+* TASK-017：exponential backoff + bounded jitter。
+* V1 LLM Reliability Foundation 已基本形成。
+* Retry-After、circuit breaker、global retry budget、provider-specific retry policy 和 adaptive retry 尚未建立。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

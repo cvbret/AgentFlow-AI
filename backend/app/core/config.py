@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     llm_model: str = Field(min_length=1)
     llm_timeout_seconds: float = Field(default=30.0, gt=0)
     llm_max_attempts: int = Field(default=3, ge=1)
+    llm_retry_base_delay_seconds: float = Field(default=1.0, ge=0)
     database_url: str | None = Field(default=None, min_length=1)
 
     @field_validator("llm_timeout_seconds")
@@ -33,6 +34,13 @@ class Settings(BaseSettings):
     def validate_llm_timeout_seconds(cls, value: float) -> float:
         if not math.isfinite(value):
             raise ValueError("llm_timeout_seconds must be finite")
+        return value
+
+    @field_validator("llm_retry_base_delay_seconds")
+    @classmethod
+    def validate_llm_retry_base_delay_seconds(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("llm_retry_base_delay_seconds must be finite")
         return value
 
 

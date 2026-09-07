@@ -1,5 +1,7 @@
 import json
-from collections.abc import Sequence
+import random
+import time
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import httpx
@@ -31,9 +33,15 @@ class LLMClient:
         self,
         settings: Settings | None = None,
         http_client: httpx.Client | None = None,
+        sleep_fn: Callable[[float], None] | None = None,
+        jitter_fn: Callable[[float], float] | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._timeout = httpx.Timeout(self._settings.llm_timeout_seconds)
+        self._sleep_fn = time.sleep if sleep_fn is None else sleep_fn
+        self._jitter_fn = (
+            self._default_jitter if jitter_fn is None else jitter_fn
+        )
 
         self._owns_http_client = http_client is None
         self._http_client = (
@@ -113,6 +121,8 @@ class LLMClient:
             except LLMProviderError as exc:
                 if not exc.retryable or attempt + 1 >= self._settings.llm_max_attempts:
                     raise
+                retry_index = attempt
+                self._sleep_fn(self._calculate_retry_delay(retry_index))
 
         raise AssertionError("LLM retry loop exited without a response or error")
 
@@ -155,6 +165,17 @@ class LLMClient:
             ) from exc
 
         return response
+
+    def _calculate_retry_delay(self, retry_index: int) -> float:
+        base_delay = self._settings.llm_retry_base_delay_seconds * (2**retry_index)
+        jitter_limit = base_delay * 0.1
+        jitter = self._jitter_fn(jitter_limit)
+        bounded_jitter = min(max(jitter, 0.0), jitter_limit)
+        return base_delay + bounded_jitter
+
+    @staticmethod
+    def _default_jitter(jitter_limit: float) -> float:
+        return random.uniform(0.0, jitter_limit)
 
     @staticmethod
     def _serialize_message(message: ChatMessage) -> dict[str, Any]:
