@@ -60,6 +60,12 @@ The Task Service coordinates the application-level flow for one task. It should 
 
 新 Approval 只能以 `PENDING` 创建；历史实体通过独立的 `Approval.restore(...)` 路径受控恢复。`APPROVED` 和 `REJECTED` 是 terminal states。
 
+Approval persistence boundary 为：
+
+`Approval Domain ↔ ApprovalRepository ↔ ApprovalRecord ORM ↔ PostgreSQL`
+
+`ApprovalRecord` 不等于 `Approval` Domain Entity。读取持久化记录时必须通过 `Approval.restore(...)` 重新水合，以继续执行 Domain invariants。本阶段仅建立 `create`、`get_by_id` 和 `save`，不提前扩展为通用 Repository framework。
+
 ## Agent Runtime / Agent Runtime 层
 
 The Agent Runtime is responsible for:

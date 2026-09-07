@@ -198,8 +198,18 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * new Approval creation separated from restore / rehydration
 * Approval Persistence Readiness = Ready
 * 171 passed, 24 skipped, 1 warning
+* TASK-021 - Approval Persistence Foundation
+* TASK-021 review result: PASS WITH NOTES
+* Approval ORM / Domain separation established
+* ApprovalRepository create / get_by_id / save established
+* Approval.restore rehydration established
+* PostgreSQL UUID / JSONB / FK persistence established
+* Alembic migration 0002 established
+* real PostgreSQL verification completed
+* Approval Persistence Readiness = Ready
+* 204 passed, 0 skipped, 1 warning
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019 和 TASK-020 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020 和 TASK-021 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -212,11 +222,12 @@ None currently confirmed.
 * TD-001 - TestClient dependency deprecation warning
 * TD-002 - Backend working-directory dependency
 * TD-004 - Calculator accepts non-finite and boolean numeric inputs
+* TD-005 - Alembic configuration coupled to LLM application settings
 
 ## Next / 下一步
 
-Approval Persistence Foundation
+Approval / Protected Execution Integration Foundation
 
 Status: Not Started
 
-Approval Persistence 尚未实现。当前尚未定义为具体 Task，暂不开始执行。
+Approval persistence 已建立；下一阶段可进入 Approval 与 protected execution 的 integration。当前尚未定义为具体 Task，暂不开始执行。

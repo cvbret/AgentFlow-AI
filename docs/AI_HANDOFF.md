@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-020 - Approval Domain Model Foundation`
+* **Task:** `TASK-021 - Approval Persistence Foundation`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** independent Approval domain entity; `PENDING` / `APPROVED` / `REJECTED`; terminal transition protection; UTC timestamps; ToolCall association; new creation and restore / rehydration paths separated after review; Approval Persistence Readiness = Ready; 171 passed, 24 skipped, 1 warning
+* **Summary:** Approval Domain → ApprovalRepository → ApprovalRecord ORM → PostgreSQL; Domain / ORM separation; `create` / `get_by_id` / `save`; `Approval.restore(...)` rehydration; UUID / JSONB / FK / timezone-aware timestamp persistence; Alembic `0002`; real PostgreSQL verification completed; Approval Persistence Readiness = Ready; 204 passed, 0 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-020 已通过 focused Independent Re-Review，最终 Review Result 为 `PASS WITH NOTES`，原 IMPORTANT 已关闭，当前尚未提交。
+TASK-021 在真实 PostgreSQL 验证完成后通过 focused Independent Re-Review，最终 Review Result 为 `PASS WITH NOTES`，原 IMPORTANT 已关闭，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -33,16 +33,16 @@ Review compatibility if the public error hierarchy is formalized later.
 ## Non-blocking Notes / 非阻塞说明
 
 * Note: 既有 `TD-001 / StarletteDeprecationWarning`。
-* Note: 当前环境无 `DATABASE_URL`，因此 24 个 PostgreSQL integration tests 未执行。
 * Note: side-effectful Tool 当前仍可暴露给 LLM，但会在 execution boundary 被 fail closed；该行为属于 TASK-019 当前 Scope，不是新的 Technical Debt。
 * Note: `Approval.arguments` 在构造时使用 Level A defensive snapshot；当前未承诺返回对象完全不可变，不阻塞 TASK-020，也不新增 Technical Debt。
+* Note: Alembic 当前通过统一 Settings 读取 LLM 配置；本次使用 session-local harmless placeholders 完成 migration verification，已记录为 TD-005。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Approval Persistence Foundation`
+* **Task:** `Approval / Protected Execution Integration Foundation`
 * **Status:** `Not Started`
 
-Approval persistence 尚未实现。当前尚未定义为具体 Task，暂不开始执行。
+Approval persistence 已建立；下一阶段可进入 Approval 与 protected execution 的 integration。当前尚未定义为具体 Task，暂不开始执行。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -69,7 +69,8 @@ Approval persistence 尚未实现。当前尚未定义为具体 Task，暂不开
 * Protected Execution Boundary 已建立；approval、idempotency、safe Tool retry 和 workflow pause/resume 尚未实现。
 * TASK-020：Approval 是独立于 TaskStatus 的 Domain Entity；一个 Task 概念上可关联多个 Approval。
 * 新 Approval 只能从 `PENDING` 创建；历史 Approval 通过 `restore(...)` 进行受控恢复。
-* Approval persistence、Approval API、Agent pause/resume 和 approval 后的 Tool execution 尚未实现。
+* TASK-021：Approval persistence 已建立；`Approval ORM` 不等于 `Approval Domain Entity`，历史实体通过 `Approval.restore(...)` 重新水合。
+* Approval API、Agent pause/resume、ToolExecutionPolicy 自动创建 Approval 以及 approved Tool execution 尚未实现。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 
@@ -161,6 +162,7 @@ Task Definition
 * `TD-002` — Backend working-directory dependency
 * `TD-003` — LLM HTTP timeout is not explicitly configured (Closed by TASK-014)
 * `TD-004` — Calculator accepts non-finite and boolean numeric inputs
+* `TD-005` — Alembic configuration coupled to LLM application settings
 
 这里只做摘要；详细信息仍以 `docs/TECH_DEBT.md` 为 Source of Truth。
 

@@ -47,6 +47,28 @@ Evaluate FastAPI / Starlette / HTTP client version compatibility together during
 
 Low
 
+## TD-005 - Alembic configuration coupled to LLM application settings
+
+### Current Situation / 当前情况
+
+`backend/alembic/env.py` currently loads the unified application `Settings` through `get_settings()`. As a result, an Alembic migration job configured with only `DATABASE_URL` also requires `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` to start. TASK-021 verification used session-local harmless placeholders for these unrelated settings.
+
+### Reason Accepted / 接受原因
+
+The current unified Settings path is sufficient for the present application and migration workflow, and TASK-021 migration verification completed successfully. Decoupling migration configuration during this State Sync would expand scope beyond the completed persistence task.
+
+### Risk / 风险
+
+Future CI/CD pipelines or standalone migration jobs that provide only database configuration may fail before migration execution. Application configuration and migration configuration also remain coupled at process startup.
+
+### Resolution Plan / 解决计划
+
+During a future engineering-configuration phase, decouple Alembic database configuration from unrelated LLM settings, or provide an explicit migration-only settings path. Add CI and migration startup coverage for the reduced configuration.
+
+### Priority / 优先级
+
+Low
+
 ## TD-004 - Calculator accepts non-finite and boolean numeric inputs
 
 ### Current Situation / 当前情况
