@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-018 - Tool Execution Safety Metadata Foundation`
+* **Task:** `TASK-019 - Side-effect Tool Execution Guard`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** `ToolMetadata.side_effect_free` established with safe default `False`; unknown/unannotated tools remain potentially side-effectful; Calculator declares `side_effect_free=True`; Registry metadata preservation and provider schema isolation preserved; ToolExecutor behavior unchanged; 151 passed, 24 skipped, 1 warning
+* **Summary:** `ToolExecutionPolicy` established at the ToolExecutor boundary; fail-closed side-effect guard; trusted internal safety metadata; rejection before `Tool.execute()`; unknown/unannotated tools rejected; AgentRuntime remains policy-agnostic; 153 passed, 24 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-018 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-019 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -34,13 +34,14 @@ Review compatibility if the public error hierarchy is formalized later.
 
 * Note: 既有 `TD-001 / StarletteDeprecationWarning`。
 * Note: 当前环境无 `DATABASE_URL`，因此 24 个 PostgreSQL integration tests 未执行。
+* Note: side-effectful Tool 当前仍可暴露给 LLM，但会在 execution boundary 被 fail closed；该行为属于 TASK-019 当前 Scope，不是新的 Technical Debt。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Reliability - idempotency / side-effect control foundation`
+* **Task:** `Reliability - idempotency / side-effect control foundation（protected execution mechanism）`
 * **Status:** `Not Started`
 
-当前尚未定义为具体 Task，暂不开始执行。
+被 fail-closed Guard 拦下的 side-effectful Tool，后续需要 protected execution mechanism 才能安全放行。当前尚未定义为具体 Task，暂不开始执行。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -62,7 +63,9 @@ Review compatibility if the public error hierarchy is formalized later.
 * V1 LLM Reliability Foundation 已基本形成。
 * Retry-After、circuit breaker、global retry budget、provider-specific retry policy 和 adaptive retry 尚未建立。
 * TASK-018：Tool execution safety metadata foundation 已建立；unknown/unannotated Tool 默认按可能有副作用处理，Calculator 显式 `side_effect_free=True`。
-* TASK-018 metadata 当前尚未被 execution policy 消费。
+* TASK-019：ToolExecutionPolicy 已进入 Tool execution boundary；仅 `side_effect_free=True` 允许 automatic execution，否则在 `Tool.execute()` 前 fail closed。
+* Tool safety decision 来自 Registry 返回的真实 Tool metadata，不信任外部 ToolCall 或 caller-supplied safety flag。
+* Protected Execution Boundary 已建立；approval、idempotency、safe Tool retry 和 workflow pause/resume 尚未实现。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

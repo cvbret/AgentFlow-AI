@@ -78,7 +78,13 @@ At minimum, a Tool has:
 
 中文释义：工具必须有可识别的名称、给模型和开发者看的描述、结构化输入定义以及真实实现。
 
-Tool 还可携带内部 execution safety metadata，例如 `side_effect_free`。未知或未标注的 Tool 默认按可能具有副作用处理。该 metadata 不属于 provider-facing tool schema，也不改变当前 ToolExecutor 的执行行为；后续 side-effect / idempotency policy 可在此基础上定义。
+Tool 还可携带内部 execution safety metadata，例如 `side_effect_free`。Tool 的 execution safety boundary 为：
+
+`ToolExecutor → Registry.get() → tool.metadata() → ToolExecutionPolicy → Tool.execute()`
+
+仅当 `side_effect_free=True` 时允许 automatic execution；未知或未标注的 Tool 默认按可能具有副作用处理，并在 `Tool.execute()` 前 fail closed。安全决策来自 Registry 返回的真实 Tool，不信任外部 ToolCall 或 caller-supplied safety flag。该 metadata 不属于 provider-facing tool schema，side-effectful Tool 仍可注册并暴露给 provider，但执行时会被拒绝。AgentRuntime 不直接承担该策略判断。
+
+当前尚未实现 protected execution mechanism，因此 approval、idempotency、safe Tool retry 和 workflow pause/resume 仍属于后续能力。
 
 ## State Layer / 状态层
 

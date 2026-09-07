@@ -2,6 +2,7 @@ import json
 
 import httpx
 import pytest
+from pydantic import BaseModel
 
 from app.core.config import Settings
 from app.llm.client import InvalidLLMResponseError, LLMClient
@@ -11,9 +12,25 @@ from app.tools.exceptions import (
     ToolInputValidationError,
     ToolNotFoundError,
 )
+from app.tools.base import Tool
 from app.tools.executor import ToolExecutor
 from app.tools.implementations.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
+from app.tools.schemas import ToolResult
+
+
+class RecordingUnannotatedTool(Tool):
+    name = "recording_unannotated"
+    description = "A test tool without an explicit safety annotation."
+    input_schema = CalculatorTool.input_schema
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.execution_count = 0
+
+    def _execute(self, input_data: BaseModel) -> ToolResult:
+        self.execution_count += 1
+        return ToolResult(content="executed")
 
 
 def make_settings() -> Settings:
@@ -153,6 +170,36 @@ def test_tool_call_executes_calculator_end_to_end() -> None:
     assert result.tool_call_id == "call_123"
     assert result.tool_name == "calculator"
     assert result.content == "96.0"
+
+
+def test_tool_executor_rejects_unannotated_tool_before_execution() -> None:
+    tool = RecordingUnannotatedTool()
+    registry = ToolRegistry()
+    registry.register(tool)
+
+    with pytest.raises(
+        ToolExecutionError,
+        match="not declared side-effect-free and no protected execution mechanism exists",
+    ):
+        ToolExecutor(registry).execute(
+            ToolCall(
+                id="call_side_effect",
+                name=tool.name,
+                arguments={"operation": "add", "a": 1, "b": 2},
+            )
+        )
+
+    assert tool.execution_count == 0
+
+
+def test_side_effect_tool_remains_registerable_and_listed() -> None:
+    tool = RecordingUnannotatedTool()
+    registry = ToolRegistry()
+
+    registry.register(tool)
+
+    assert registry.get(tool.name) is tool
+    assert registry.list()[0].side_effect_free is False
 
 
 def test_tool_call_unknown_tool_raises_domain_error() -> None:
