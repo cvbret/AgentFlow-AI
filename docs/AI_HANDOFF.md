@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-017 - LLM Retry Timing Policy`
+* **Task:** `TASK-018 - Tool Execution Safety Metadata Foundation`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** configurable retry base delay; exponential backoff; bounded additive jitter; injectable sleeper/jitter for deterministic tests; no final-attempt sleep; Agent/Task lifecycle unaffected; 147 passed, 24 skipped, 1 warning
+* **Summary:** `ToolMetadata.side_effect_free` established with safe default `False`; unknown/unannotated tools remain potentially side-effectful; Calculator declares `side_effect_free=True`; Registry metadata preservation and provider schema isolation preserved; ToolExecutor behavior unchanged; 151 passed, 24 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-017 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-018 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -34,7 +34,6 @@ Review compatibility if the public error hierarchy is formalized later.
 
 * Note: 既有 `TD-001 / StarletteDeprecationWarning`。
 * Note: 当前环境无 `DATABASE_URL`，因此 24 个 PostgreSQL integration tests 未执行。
-* Note: `LLM_MAX_ATTEMPTS` 仍采用 Pydantic 一般 numeric coercion，例如部分可转换值可能被接受；不阻塞当前 Reliability Foundation，未升级为 Technical Debt。
 
 ## Current Next Task / 当前下一任务
 
@@ -62,6 +61,8 @@ Review compatibility if the public error hierarchy is formalized later.
 * TASK-017：exponential backoff + bounded jitter。
 * V1 LLM Reliability Foundation 已基本形成。
 * Retry-After、circuit breaker、global retry budget、provider-specific retry policy 和 adaptive retry 尚未建立。
+* TASK-018：Tool execution safety metadata foundation 已建立；unknown/unannotated Tool 默认按可能有副作用处理，Calculator 显式 `side_effect_free=True`。
+* TASK-018 metadata 当前尚未被 execution policy 消费。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

@@ -76,7 +76,9 @@ At minimum, a Tool has:
 * `input schema`
 * `implementation`
 
-中文释义：工具必须有可识别的名称、给模型和开发者看的描述、结构化输入定义以及真实实现。未来再根据明确需求增加 timeout、retry、permissions 和 side-effect classification；当前不提前设计完整工具平台。
+中文释义：工具必须有可识别的名称、给模型和开发者看的描述、结构化输入定义以及真实实现。
+
+Tool 还可携带内部 execution safety metadata，例如 `side_effect_free`。未知或未标注的 Tool 默认按可能具有副作用处理。该 metadata 不属于 provider-facing tool schema，也不改变当前 ToolExecutor 的执行行为；后续 side-effect / idempotency policy 可在此基础上定义。
 
 ## State Layer / 状态层
 

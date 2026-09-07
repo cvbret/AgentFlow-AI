@@ -171,8 +171,17 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * no final-attempt sleep
 * Agent/Task lifecycle unaffected
 * 147 passed, 24 skipped, 1 warning
+* TASK-018 - Tool Execution Safety Metadata Foundation
+* TASK-018 review result: PASS WITH NOTES
+* ToolMetadata.side_effect_free established
+* safe default=False established for unknown and unannotated tools
+* Calculator side_effect_free=True established
+* Tool Registry metadata preservation verified
+* provider schema isolation preserved
+* ToolExecutor behavior unchanged
+* 151 passed, 24 skipped, 1 warning
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016 和 TASK-017 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017 和 TASK-018 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 

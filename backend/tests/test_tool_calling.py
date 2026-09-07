@@ -84,6 +84,7 @@ def test_chat_sends_openai_compatible_tool_schema() -> None:
             },
         }
     ]
+    assert "side_effect_free" not in payload["tools"][0]["function"]
 
 
 def test_chat_parses_provider_tool_call_into_domain_model() -> None:

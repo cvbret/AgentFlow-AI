@@ -19,6 +19,7 @@ class CalculatorTool(Tool):
     name = "calculator"
     description = "Perform one basic arithmetic operation on two numbers."
     input_schema = CalculatorInput
+    side_effect_free = True
 
     def _execute(self, input_data: BaseModel) -> ToolResult:
         calculator_input = cast(CalculatorInput, input_data)

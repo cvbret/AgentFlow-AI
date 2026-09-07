@@ -1,5 +1,5 @@
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.tools.exceptions import (
     DuplicateToolError,
@@ -8,8 +8,10 @@ from app.tools.exceptions import (
     ToolInputValidationError,
     ToolNotFoundError,
 )
+from app.tools.base import Tool
 from app.tools.implementations.calculator import CalculatorInput, CalculatorTool
 from app.tools.registry import ToolRegistry
+from app.tools.schemas import ToolMetadata, ToolResult
 
 
 @pytest.fixture
@@ -92,6 +94,36 @@ def test_registry_lists_tool_metadata(registry: ToolRegistry) -> None:
         "multiply",
         "divide",
     ]
+    assert metadata[0].side_effect_free is True
+
+
+def test_tool_metadata_defaults_to_side_effect_free_false() -> None:
+    metadata = ToolMetadata(
+        name="unknown",
+        description="An unannotated tool",
+        input_schema={"type": "object"},
+    )
+
+    assert metadata.side_effect_free is False
+
+
+def test_unannotated_tool_metadata_defaults_to_side_effect_free_false() -> None:
+    class UnannotatedTool(Tool):
+        name = "unannotated"
+        description = "An unannotated tool"
+        input_schema = CalculatorInput
+
+        def _execute(self, input_data: BaseModel) -> ToolResult:
+            return ToolResult(content="ok")
+
+    assert UnannotatedTool().metadata().side_effect_free is False
+
+
+def test_registry_preserves_side_effect_metadata(calculator: CalculatorTool) -> None:
+    registry = ToolRegistry()
+    registry.register(calculator)
+
+    assert registry.list()[0].side_effect_free is True
 
 
 def test_tool_name_must_not_be_empty() -> None:

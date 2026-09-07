@@ -17,3 +17,4 @@ class ToolMetadata(BaseModel):
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
     input_schema: dict[str, Any]
+    side_effect_free: bool = False

@@ -14,6 +14,7 @@ class Tool(ABC):
     name: str
     description: str
     input_schema: type[BaseModel]
+    side_effect_free: bool = False
 
     def __init__(self) -> None:
         if not isinstance(self.name, str) or not self.name.strip():
@@ -32,6 +33,7 @@ class Tool(ABC):
             name=self.name,
             description=self.description,
             input_schema=self.input_schema.model_json_schema(),
+            side_effect_free=self.side_effect_free,
         )
 
     def execute(
