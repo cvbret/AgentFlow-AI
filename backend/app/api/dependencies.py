@@ -5,6 +5,8 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.agents.runtime import AgentRuntime
+from app.approvals.repository import ApprovalRepository
+from app.approvals.service import ApprovalDecisionService
 from app.tasks.pause_persistence import HITLPausePersistence
 from app.core.config import get_settings
 from app.db.session import get_session_factory
@@ -80,3 +82,9 @@ def close_agent_runtime() -> None:
         _agent_runtime = None
         if runtime is not None:
             runtime.close()
+
+
+def get_approval_decision_service(
+    session: Session = Depends(get_db_session),
+) -> ApprovalDecisionService:
+    return ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session))

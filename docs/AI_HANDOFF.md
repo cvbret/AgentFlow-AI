@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-023 - HITL Pause Integration Foundation`
+* **Task:** `TASK-024 - Approval Decision Integration Foundation`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** `WAITING_APPROVAL` lifecycle state; AgentRuntime wiring to `ProtectedToolExecutionService`; unchanged `ApprovalRequired` propagation; atomic `Approval(PENDING)` + `Task(WAITING_APPROVAL)` pause persistence; conditional RUNNING → FAILED protection; Approval Decision Integration Readiness = Ready; 245 passed, 0 skipped, 1 warning
+* **Summary:** Approval Decision API; `ApprovalDecisionService`; `PENDING → APPROVED / REJECTED`; atomic conditional decision persistence; concurrency-safe single-winner guarantee; Task eligibility requires `WAITING_APPROVAL`; Task remains `WAITING_APPROVAL`; approved decision does not execute Tool; Approval Lifecycle Integration Readiness = Ready; 258 passed, 0 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-023 已通过最终 Independent Review，最终 Review Result 为 `PASS WITH NOTES`；所有 TASK-023 IMPORTANT 已关闭，当前尚未提交。
+TASK-024 已通过最终 Independent Review，最终 Review Result 为 `PASS WITH NOTES`；无 BLOCKER 或 IMPORTANT，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -39,13 +39,15 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: 本轮 Reviewer 因本地无 `DATABASE_URL` 未独立复跑 PostgreSQL tests，但接受已有明确 validation evidence；不构成 blocker。
 * Note: `ProtectedToolExecutionService` 与 `ToolExecutor` 当前存在 double policy evaluation；policy 无状态且语义一致，暂不重构。
 * Note: FAILED persistence 仍为 best-effort；数据库完全不可用时不能保证 FAILED durable 保存。commit acknowledgement uncertainty 尚未完整 reconciliation，但 conditional RUNNING-only update 不会覆盖已提交的 WAITING_APPROVAL。
+* Note: commit acknowledgement uncertainty 仍可能造成 API 返回错误而 decision 实际已提交；当前不做完整 reconciliation。
+* Note: 未来 WAITING lifecycle continuation 与 Approval decision 的并发协调需要重新评估；当前 Task eligibility 仅允许 `WAITING_APPROVAL`。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Approval Decision Integration Foundation`
+* **Task:** `Approval Decision → Task Lifecycle Integration`
 * **Status:** `Not Started`
 
-HITL pause 与 persistent Approval 已建立；下一阶段可进入 Approval decision integration。当前尚未定义为具体 Task，暂不开始执行。
+Approval decision 已建立，但尚未实现 decision 后的 Task lifecycle continuation。当前尚未定义为具体 Task，暂不开始执行。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -78,7 +80,9 @@ HITL pause 与 persistent Approval 已建立；下一阶段可进入 Approval de
 * Safe Tool 保持 exactly-once automatic execution；side-effectful Tool 与 persistence failure 均不会调用 `Tool.execute()`。
 * TASK-023：`AgentRuntime → ProtectedToolExecutionService → ApprovalRequired → TaskExecutionService → HITLPausePersistence`，以单次短事务原子持久化 Approval(PENDING) 与 Task(WAITING_APPROVAL)。
 * 失败处理使用 conditional RUNNING → FAILED update；0 rows 不表示 waiting success confirmed，commit acknowledgement uncertainty 尚未完整 reconciliation。
-* Approval decision API、approve/reject application integration、WAITING_APPROVAL resume、checkpoint 和 approved Tool execution 尚未实现。
+* TASK-024：`POST /api/approvals/{id}/approve|reject → ApprovalDecisionService → Approval Domain → conditional Approval persistence`；并发决策保证单一成功者，冲突返回 409。
+* Decision API 不调用 AgentRuntime、LLM、ToolExecutor 或 ProtectedToolExecutionService；`APPROVED` / `REJECTED` 后 Task 仍为 `WAITING_APPROVAL`。
+* Task lifecycle continuation、`WAITING_APPROVAL → RUNNING`、reject terminal Task behavior、checkpoint、resume 和 approved Tool execution 尚未实现。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

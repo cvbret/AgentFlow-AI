@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.api.agent import AGENT_DOMAIN_ERRORS, agent_error_handler
 from app.api.agent import router as agent_router
 from app.api.health import router as health_router
+from app.api.approvals import router as approval_router, APPROVAL_ERRORS, approval_error_handler
 from app.api.tasks import router as task_router
 from app.api.dependencies import close_agent_runtime
 
@@ -22,3 +23,7 @@ app.include_router(task_router, prefix="/api")
 
 for exception_type in AGENT_DOMAIN_ERRORS:
     app.add_exception_handler(exception_type, agent_error_handler)
+
+app.include_router(approval_router, prefix="/api")
+for exception_type in APPROVAL_ERRORS:
+    app.add_exception_handler(exception_type, approval_error_handler)

@@ -102,7 +102,7 @@ TASK-023 路径为 `TaskExecutionService → AgentRuntime.run(task_id) → Prote
 
 任一写入或 commit 失败时回滚整个 pause transaction；原 Domain Task 仍为 RUNNING，随后合法进入 FAILED 并单独 best-effort 保存。失败持久化使用单条带 `id` 与 `status=RUNNING` 条件的 UPDATE，仅 durable state 仍是 RUNNING 才更新为 FAILED。若 commit 已成功但确认丢失，更新零行，保留 WAITING_APPROVAL；零行不代表已确认暂停成功。FAILED 保存本身也可能失败，原始错误继续传播；不返回伪造的 waiting 成功。Standalone Repository create/save 继续拥有 commit，新增 staging 方法不 commit。详见 ADR-003 / TD-006。
 
-`POST /api/agent/run` 返回 `task_id + status + answer`，其中 status 为 `succeeded` 或 `waiting_approval`，暂停时 answer 为 null。Task 查询与过滤支持小写 `waiting_approval`。当前未实现 resume、Approval decision API、approved Tool execution 或 idempotency。`ProtectedToolExecutionService` 与 `ToolExecutor` 当前存在无状态且语义一致的 double policy evaluation，暂不为此扩大架构范围。
+`POST /api/agent/run` 返回 `task_id + status + answer`，其中 status 为 `succeeded` 或 `waiting_approval`，暂停时 answer 为 null。Task 查询与过滤支持小写 `waiting_approval`。TASK-024 已实现 Approval decision API（见下节）；当前未实现 resume、approved Tool execution 或 idempotency。`ProtectedToolExecutionService` 与 `ToolExecutor` 当前存在无状态且语义一致的 double policy evaluation，暂不为此扩大架构范围。
 
 ## State Layer / 状态层
 
@@ -146,3 +146,12 @@ LLM / Tools / Infrastructure
 Any material architecture change must be recorded in `docs/DECISIONS.md` as a new ADR. Existing ADRs are historical records and must not be overwritten to hide the earlier decision.
 
 中文释义：重大架构选择必须留下可追溯记录。后续即使改变方向，也应追加新的 ADR，说明背景、决定和后果，而不是修改旧记录让历史消失。
+
+
+## Approval Decision Application Boundary (TASK-024)
+
+`POST /api/approvals/{approval_id}/approve|reject → ApprovalDecisionService → Approval.approve()/reject() → ApprovalRepository.save_decision_if_pending() → PostgreSQL`。
+
+Service 与两个 Repository 使用请求级 Session。Service 读取关联 Task，仅允许 WAITING_APPROVAL 上的 PENDING Approval。数据库通过单条条件 UPDATE（PENDING、Task identity、关联 Task WAITING 条件）保护竞争，只写 status/decided_at；提交成功才返回 terminal DTO。重复或竞争失败返回 409，不存在 Approval 返回 404，无效 Task context 返回 409，数据库错误回滚并传播。
+
+Decision 不调用 Runtime/Tool，不改变 Task，Approval=APPROVED/REJECTED 后 Task 仍为 WAITING_APPROVAL。既有 standalone save 兼容保留，decision 路径必须使用条件写入。该能力不包含 resume、reconciliation 或完整 idempotency；commit acknowledgement 丢失仍可返回错误，不自动重试或推断成功。

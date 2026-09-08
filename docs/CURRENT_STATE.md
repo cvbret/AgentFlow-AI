@@ -227,8 +227,20 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * conditional RUNNING → FAILED persistence protects committed WAITING_APPROVAL
 * Approval Decision Integration Readiness = Ready
 * 245 passed, 0 skipped, 1 warning
+* TASK-024 - Approval Decision Integration Foundation
+* TASK-024 review result: PASS WITH NOTES
+* Approval Decision API established for approve / reject
+* ApprovalDecisionService established
+* PENDING → APPROVED / REJECTED decision flow established
+* atomic conditional decision persistence established
+* concurrent decisions have a single-winner guarantee
+* Task eligibility requires WAITING_APPROVAL
+* Task remains WAITING_APPROVAL after decision
+* approved decision does not execute Tool
+* Approval Lifecycle Integration Readiness = Ready
+* 258 passed, 0 skipped, 1 warning
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022 和 TASK-023 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023 和 TASK-024 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -245,8 +257,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-Approval Decision Integration Foundation
+Approval Decision → Task Lifecycle Integration
 
 Status: Not Started
 
-HITL pause 与 persistent Approval 已建立；下一阶段可进入 Approval decision integration。当前尚未定义为具体 Task，暂不开始执行。
+Approval decision 已建立，但尚未实现 decision 后的 Task lifecycle continuation。当前尚未定义为具体 Task，暂不开始执行。

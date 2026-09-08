@@ -1,6 +1,9 @@
 from uuid import UUID
 
+from sqlalchemy import update, exists
 from sqlalchemy.exc import SQLAlchemyError
+from app.db.models.task import TaskRecord
+from app.tasks.models import TaskStatus
 from sqlalchemy.orm import Session
 
 from app.approvals.exceptions import ApprovalError
@@ -33,6 +36,34 @@ class ApprovalRepository:
             self._session.rollback()
             raise
         return approval
+
+    def save_decision_if_pending(self, approval: Approval) -> bool:
+        """Commit a valid terminal candidate only if its request is still eligible."""
+        candidate = Approval.restore(**approval.model_dump())
+        if candidate.status not in (ApprovalStatus.APPROVED, ApprovalStatus.REJECTED):
+            raise ApprovalError("Decision persistence requires a terminal Approval")
+        try:
+            result = self._session.execute(
+                update(ApprovalRecord)
+                .where(
+                    ApprovalRecord.id == candidate.id,
+                    ApprovalRecord.task_id == candidate.task_id,
+                    ApprovalRecord.status == ApprovalStatus.PENDING.value,
+                    exists().where(
+                        TaskRecord.id == ApprovalRecord.task_id,
+                        TaskRecord.status == TaskStatus.WAITING_APPROVAL.value,
+                    ),
+                )
+                .values(status=candidate.status.value, decided_at=candidate.decided_at)
+                .execution_options(synchronize_session=False)
+            )
+            accepted = result.rowcount == 1
+            self._session.commit()
+            self._session.expire_all()
+            return accepted
+        except SQLAlchemyError:
+            self._session.rollback()
+            raise
 
     def get_by_id(self, approval_id: UUID) -> Approval | None:
         record = self._session.get(ApprovalRecord, approval_id)
