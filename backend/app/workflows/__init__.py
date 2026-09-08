@@ -1,1 +1,1 @@
-"""Isolated durable workflow foundation; not wired into AgentRuntime."""
+"""Agent orchestration and isolated durable workflow foundation."""

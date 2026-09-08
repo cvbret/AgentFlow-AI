@@ -167,7 +167,7 @@ Task 查询及 `GET /api/tasks?status=rejected` 支持新状态。Approval API D
 
 ## Durable Workflow Foundation (TASK-026 / ADR-005)
 
-The isolated app.workflows package provides START -> durable_pause (interrupt) -> END. It does not replace AgentRuntime or APIs. State contains only task_id and optional resume_result strings, with no runtime objects or business lifecycle snapshots.
+The isolated foundation graph provides START -> durable_pause (interrupt) -> END. Its input remains task_id with optional resume_result; it is separate from the Agent execution graph introduced in TASK-027. The shared AgentGraphState additionally permits Agent loop fields, with no runtime objects or business lifecycle snapshots.
 
 AgentFlow Task.id -> task_id_to_thread_id -> LangGraph configurable.thread_id. LangGraph internal task IDs are distinct. The interrupt node has no pre-interrupt side effects and is replay-safe.
 
@@ -176,3 +176,33 @@ open_checkpointer owns a synchronous official PostgresSaver connection. Run pyth
 Restart tests close process A before process B creates a fresh graph/checkpointer and resumes the persisted thread with Command(resume), without initial input. Separate thread isolation and final state are verified.
 
 LangGraph owns orchestration/checkpoint foundation. AgentFlow retains Domain, Services, Repositories, Tool safety, LLM reliability and FastAPI. Business/checkpoint consistency is recognized and deferred to a separately designed integration task.
+
+
+## Agent Runtime Orchestration (TASK-027 / ADR-005)
+
+AgentRuntime remains the application-facing façade: run(initial_messages, *, task_id)
+returns AgentResult(content). Each run builds and invokes a compiled StateGraph:
+START -> llm -> pure route -> tool / END; tool -> llm.
+Per-run construction preserves the existing tool-definition snapshot and
+ProtectedToolExecutionService lifetime. API and TaskExecutionService remain unchanged.
+
+AgentGraphState carries task_id (string), messages (AgentFlow ChatMessage list),
+step_count (LLM rounds), and final_answer (original non-empty content). These loop
+fields are optional for compatibility with the separate foundation graph;
+resume_result remains foundation-only. Pending ToolCalls are already represented
+by the last assistant message, so no duplicate pending-call state is introduced.
+Dependencies live in node closures. No LangChain message conversion is required.
+
+max_steps still bounds LLM calls. A final answer on the last allowed call succeeds;
+all ToolCalls returned on that call execute sequentially before the next LLM node
+raises AgentMaxStepsExceededError without another provider call. Tool failures and
+ApprovalRequired therefore retain priority over exhaustion. The invocation uses
+recursion_limit = 2 * max_steps + 2 solely as an additional framework guard.
+
+LLMClient retains provider parsing, retries, backoff and error classification.
+ProtectedToolExecutionService and ToolExecutor retain all safety and execution
+policy. Tool results return to the next LLM call in response order; exceptions
+propagate unchanged and stop remaining tools. ApprovalRequired carries an
+unpersisted request to the existing application persistence boundary, not a
+LangGraph interrupt. There is no Agent checkpointer, resume, approved execution,
+business/checkpoint dual write or lifecycle change in TASK-027.

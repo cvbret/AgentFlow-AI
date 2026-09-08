@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-026 - LangGraph Durable Workflow Foundation`
+* **Task:** `TASK-027 - AgentRuntime → LangGraph Orchestration Integration`
 * **Review Result:** `PASS`
-* **Summary:** incremental LangGraph adoption; minimal PostgreSQL-backed StateGraph foundation; Task.id → configurable.thread_id mapping; durable interrupt; `Command(resume)` continuation; real PostgreSQL cross-process fresh Graph/Saver recovery; no AgentRuntime migration; 285 passed, 0 skipped, 0 warnings
+* **Summary:** AgentRuntime now delegates loop orchestration to LangGraph StateGraph; LLM/Tool boundaries preserved; multiple ToolCalls and multi-round semantics preserved; max_steps preserved; ApprovalRequired still propagates; real Agent durable checkpoint/resume not yet integrated; 293 passed, 0 skipped, 0 warnings
 * **Git commit:** `Pending commit`
 
-TASK-026 已通过最终 Independent Review，最终 Review Result 为 `PASS`，当前尚未提交。
+TASK-027 已通过最终 Independent Review，最终 Review Result 为 `PASS`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -38,20 +38,21 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: Alembic 当前通过统一 Settings 读取 LLM 配置；本次使用 session-local harmless placeholders 完成 migration verification，已记录为 TD-005。
 * Note: `TD-001 / StarletteDeprecationWarning` 仍是既有 Technical Debt；TASK-026 final suite 报告 0 warnings。
 * Note: AgentFlow business persistence 与 LangGraph checkpoint persistence 是独立 durable boundaries，当前没有跨两者 transaction atomicity、reconciliation 或 exactly-once 保证。
+* Note: TASK-027 Reviewer 独立验证 293 passed、0 skipped、0 warnings；real Agent PostgreSQL checkpoint/resume 尚未集成。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-027 - AgentRuntime → LangGraph Orchestration Integration`
+* **Task:** `TASK-028 - Approved Tool Resume Integration`
 * **Status:** `Not Started`
 
-当前 LangGraph durable workflow foundation 已建立；下一阶段可进入 AgentRuntime orchestration integration。当前不开始执行 TASK-027。
+当前 AgentRuntime orchestration 已迁移至 LangGraph StateGraph；下一阶段进入 Approval / Protected Tool Resume integration。当前不开始执行 TASK-028。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
 * V1 暂不引入 LangChain。
 * LangGraph has been adopted incrementally from TASK-026。
 * LangGraph 当前作为 orchestration layer，负责 workflow state、checkpoint、interrupt、resume 和 routing foundation。
-* 当前 AgentRuntime 仍为既有 custom runtime；TASK-026 未实现 AgentRuntime → LangGraph migration。
+* TASK-027 后 AgentRuntime 仍为 application-facing façade，实际 Agent loop orchestration 由 LangGraph StateGraph 承担。
 * 不提前引入 MCP。
 * 不提前实现 Multi-Agent。
 * Repository 是 Source of Truth。
@@ -86,9 +87,9 @@ Review compatibility if the public error hierarchy is formalized later.
 * TASK-026：LangGraph durable workflow foundation 已建立；LangGraph 仅负责 orchestration foundation，AgentFlow 保留 LLMClient、LLM reliability、Tool/Registry/Executor/Policy、Domain、Services、Repositories、business persistence 和 FastAPI。
 * Business persistence 由 SQLAlchemy / Repository / Alembic 管理；workflow persistence 由 PostgreSQL-backed PostgresSaver 管理，LangGraph checkpoint tables 不由 AgentFlow Alembic 管理。
 * AgentFlow business state、LangGraph workflow state 和 external side effects 仍是三个独立关注面；当前没有跨 business/checkpoint persistence 的 transaction atomicity、reconciliation 或 exactly-once 保证。
-* Task lifecycle continuation、`WAITING_APPROVAL → RUNNING`、Approval-driven resume、checkpoint 与 approved Tool execution 尚未实现；TASK-027 仅记录为 Not Started。
+* TASK-027 未接入 real Agent PostgreSQL checkpoint/resume，也未实现 `WAITING_APPROVAL → RUNNING`、Approval-driven resume 或 approved Tool execution；TASK-028 保持 Not Started。
 
-Resume Architecture Readiness = Ready；这表示可以开始 checkpoint/resume architecture design，不表示 resume、checkpoint 或 LangGraph 已迁移或选定替代 AgentRuntime。
+Resume Architecture Readiness = Ready；TASK-026 foundation 与 TASK-027 orchestration migration 已完成，但 real Agent durable resume、Approval-driven resume 和 approved Tool execution 仍属于后续任务。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

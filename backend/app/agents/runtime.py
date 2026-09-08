@@ -3,21 +3,14 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from app.llm.client import InvalidLLMResponseError, LLMClient
+from app.agents.exceptions import AgentError, AgentMaxStepsExceededError
+from app.llm.client import LLMClient
 from app.llm.schemas import ChatMessage
 from app.protected_execution import ProtectedToolExecutionService
 from app.tools.registry import ToolRegistry
 
 
 DEFAULT_MAX_STEPS = 5
-
-
-class AgentError(RuntimeError):
-    """Base error for the Agent runtime."""
-
-
-class AgentMaxStepsExceededError(AgentError):
-    """Raised when the Agent does not produce a final answer in time."""
 
 
 class AgentResult(BaseModel):
@@ -49,43 +42,25 @@ class AgentRuntime:
         *,
         task_id: UUID,
     ) -> AgentResult:
+        from app.workflows.agent import build_agent_graph
+
         protected_execution = ProtectedToolExecutionService(
             self._tool_registry
         )
-        messages = list(initial_messages)
-        tool_definitions = self._tool_registry.list()
-
-        for _step in range(self._max_steps):
-            response = self._llm_client.chat(
-                messages=messages,
-                tools=tool_definitions,
-            )
-            if not response.tool_calls:
-                if response.content is None or not response.content.strip():
-                    raise InvalidLLMResponseError(
-                        "LLM response without tool_calls must contain non-empty content"
-                    )
-                return AgentResult(content=response.content)
-
-            messages.append(
-                ChatMessage(
-                    role="assistant",
-                    content=response.content,
-                    tool_calls=response.tool_calls,
-                )
-            )
-            for tool_call in response.tool_calls:
-                execution_result = protected_execution.execute(
-                    task_id=task_id, tool_call=tool_call
-                )
-                messages.append(
-                    ChatMessage(
-                        role="tool",
-                        tool_call_id=execution_result.tool_call_id,
-                        content=execution_result.content,
-                    )
-                )
-
-        raise AgentMaxStepsExceededError(
-            f"Agent exceeded max_steps={self._max_steps}"
+        graph = build_agent_graph(
+            self._llm_client,
+            self._tool_registry.list(),
+            protected_execution,
+            max_steps=self._max_steps,
         )
+        state = graph.invoke(
+            {
+                "task_id": str(task_id),
+                "messages": list(initial_messages),
+                "step_count": 0,
+            },
+            # Each round can visit LLM and Tool; leave room for the explicit
+            # exhaustion check. This framework guard is not the step budget.
+            config={"recursion_limit": 2 * self._max_steps + 2},
+        )
+        return AgentResult(content=state["final_answer"])

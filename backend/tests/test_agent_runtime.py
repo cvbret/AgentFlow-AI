@@ -307,3 +307,104 @@ def test_runtime_rejects_empty_final_response(content: str | None) -> None:
             [ChatMessage(role="user", content="Use the model")],
             task_id=uuid4(),
         )
+
+
+@pytest.mark.parametrize("max_steps", [1, 3, 20])
+def test_runtime_accepts_final_answer_on_last_allowed_round(max_steps):
+    payloads = []
+    runtime = make_runtime(
+        [make_tool_response(
+            (f"call_{i}", "calculator", '{"operation":"add","a":1,"b":2}')
+        ) for i in range(max_steps - 1)]
+        + [{"choices": [{"message": {"content": "  Final answer\n"}}]}],
+        payloads,
+        max_steps=max_steps,
+    )
+    messages = [ChatMessage(role="user", content="Calculate")]
+    result = runtime.run(messages, task_id=uuid4())
+    assert result.model_dump() == {"content": "  Final answer\n"}
+    assert len(payloads) == max_steps
+    assert len(messages) == 1
+
+
+@pytest.mark.parametrize("max_steps", [1, 20])
+def test_runtime_exhaustion_executes_all_tools_in_order(max_steps):
+    executed = []
+
+    class RecordingCalculator(CalculatorTool):
+        def _execute(self, input_data):
+            executed.append(input_data.a)
+            return super()._execute(input_data)
+
+    payloads = []
+    runtime = make_runtime([
+        make_tool_response(*[
+            (f"call_{i}_{j}", "calculator",
+             json.dumps({"operation": "add", "a": 2 * i + j, "b": 1}))
+            for j in range(2)
+        ]) for i in range(max_steps)
+    ], payloads, max_steps=max_steps, calculator=RecordingCalculator())
+    with pytest.raises(AgentMaxStepsExceededError, match=f"max_steps={max_steps}"):
+        runtime.run([ChatMessage(role="user", content="Loop")], task_id=uuid4())
+    assert len(payloads) == max_steps
+    assert executed == list(range(2 * max_steps))
+
+
+def test_runtime_reuse_does_not_leak_history_or_step_budget():
+    payloads = []
+    runtime = make_runtime([
+        {"choices": [{"message": {"content": "First"}}]},
+        {"choices": [{"message": {"content": "Second"}}]},
+    ], payloads, max_steps=1)
+    for prompt in ("First", "Second"):
+        assert runtime.run(
+            [ChatMessage(role="user", content=prompt)], task_id=uuid4()
+        ).content == prompt
+    assert [p["messages"] for p in payloads] == [
+        [{"role": "user", "content": "First"}],
+        [{"role": "user", "content": "Second"}],
+    ]
+
+
+def test_runtime_last_round_tool_failure_precedes_exhaustion():
+    executed = []
+
+    class RecordingCalculator(CalculatorTool):
+        def _execute(self, input_data):
+            executed.append(input_data.a)
+            return super()._execute(input_data)
+
+    runtime = make_runtime([make_tool_response(
+        ("safe", "calculator", '{"operation":"add","a":1,"b":2}'),
+        ("missing", "missing", '{}'),
+        ("later", "calculator", '{"operation":"add","a":3,"b":4}'),
+    )], max_steps=1, calculator=RecordingCalculator())
+    with pytest.raises(ToolNotFoundError):
+        runtime.run([ChatMessage(role="user", content="Tools")], task_id=uuid4())
+    assert executed == [1]
+
+
+def test_runtime_last_round_propagates_same_approval_signal():
+    from unittest.mock import Mock
+
+    from app.approvals.models import Approval
+    from app.llm.schemas import LLMResponse, ToolCall
+    from app.protected_execution import ApprovalRequired
+
+    task_id = uuid4()
+    call = ToolCall(id="protected", name="calculator", arguments={})
+    signal = ApprovalRequired(Approval(
+        task_id=task_id, tool_call_id=call.id,
+        tool_name=call.name, arguments=call.arguments,
+    ))
+    llm = Mock()
+    llm.chat.return_value = LLMResponse(tool_calls=[call, call])
+    runtime = AgentRuntime(llm, make_registry(), max_steps=1)
+    from unittest.mock import patch
+    with patch("app.protected_execution.ProtectedToolExecutionService.execute",
+               side_effect=signal) as execute:
+        with pytest.raises(ApprovalRequired) as raised:
+            runtime.run([ChatMessage(role="user", content="Protected")], task_id=task_id)
+    assert raised.value is signal
+    execute.assert_called_once_with(task_id=task_id, tool_call=call)
+    llm.chat.assert_called_once()

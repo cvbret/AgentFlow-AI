@@ -54,11 +54,13 @@ This roadmap is directional. A phase is not considered complete merely because i
 * workflow execution
 * LangGraph evaluation completed by TASK-026
 * incremental LangGraph adoption selected
-* AgentRuntime orchestration integration
+* AgentRuntime orchestration integration completed by TASK-027
 
 LangGraph evaluation was intentionally deferred until an actual workflow-orchestration requirement appeared. That evaluation completed in TASK-026, and incremental adoption was selected; LangGraph remains not a Day 1 mandatory dependency.
 
 中文释义：先用显式状态和转移表达真实需求，再评估框架是否减少复杂度。不能因为路线图提到 LangGraph，就提前把它加入初始 Runtime。
+
+下一阶段：Approval / Protected Tool Resume integration。
 
 ## Phase 6 - Observability / 可观测性
 
@@ -72,6 +74,7 @@ LangGraph evaluation was intentionally deferred until an actual workflow-orchest
 * approval steps
 * dangerous tool confirmation
 * pause / resume
+* Approval / Protected Tool Resume integration follows TASK-027
 
 ## Phase 8 - Multi-Agent / 多 Agent
 

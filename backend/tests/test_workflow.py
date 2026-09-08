@@ -21,7 +21,7 @@ def test_task_identity_mapping():
 def test_minimal_state_interrupt_and_resume():
     identity = task_id_to_thread_id(uuid4())
     state: AgentGraphState = {"task_id": identity}
-    assert set(AgentGraphState.__annotations__) == {"task_id", "resume_result"}
+    assert set(AgentGraphState.__annotations__) == {"task_id", "resume_result", "messages", "step_count", "final_answer"}
     graph = build_foundation_graph(InMemorySaver())
     config = {"configurable": {"thread_id": identity}}
     paused = graph.invoke(state, config)
