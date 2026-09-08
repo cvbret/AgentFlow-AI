@@ -14,16 +14,20 @@ class ApprovalRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def create(self, approval: Approval) -> Approval:
+    def stage_create(self, approval: Approval) -> Approval:
+        """Add a pending request; the caller owns commit and rollback."""
         if approval.status is not ApprovalStatus.PENDING:
             raise ApprovalError("ApprovalRepository.create requires PENDING Approval")
         if approval.decided_at is not None:
             raise ApprovalError(
                 "ApprovalRepository.create requires undecided Approval"
             )
+        self._session.add(self._to_record(approval))
+        return approval
 
+    def create(self, approval: Approval) -> Approval:
         try:
-            self._session.add(self._to_record(approval))
+            self.stage_create(approval)
             self._session.commit()
         except SQLAlchemyError:
             self._session.rollback()

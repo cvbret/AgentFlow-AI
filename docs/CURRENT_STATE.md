@@ -208,8 +208,27 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * real PostgreSQL verification completed
 * Approval Persistence Readiness = Ready
 * 204 passed, 0 skipped, 1 warning
+* TASK-022 - Protected Tool Execution Request Foundation
+* TASK-022 review result: PASS WITH NOTES
+* ProtectedToolExecutionService established as the protected execution orchestration boundary
+* safe Tools execute exactly once without creating Approval
+* registered side-effectful and unannotated Tools create persistent PENDING Approval requests
+* ApprovalRequired carries persisted approval identity and protected ToolCall context
+* protected Tool rejection occurs before Tool.execute(), including persistence failure paths
+* unknown Tools remain ToolNotFoundError paths without creating Approval
+* HITL Pause Integration Readiness = Ready
+* 210 passed, 0 skipped, 1 warning
+* TASK-023 - HITL Pause Integration Foundation
+* TASK-023 review result: PASS WITH NOTES
+* WAITING_APPROVAL lifecycle state established from RUNNING
+* AgentRuntime wired to ProtectedToolExecutionService
+* ApprovalRequired reaches TaskExecutionService unchanged
+* atomic Approval(PENDING) + Task(WAITING_APPROVAL) pause persistence established
+* conditional RUNNING → FAILED persistence protects committed WAITING_APPROVAL
+* Approval Decision Integration Readiness = Ready
+* 245 passed, 0 skipped, 1 warning
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020 和 TASK-021 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022 和 TASK-023 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -226,8 +245,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-Approval / Protected Execution Integration Foundation
+Approval Decision Integration Foundation
 
 Status: Not Started
 
-Approval persistence 已建立；下一阶段可进入 Approval 与 protected execution 的 integration。当前尚未定义为具体 Task，暂不开始执行。
+HITL pause 与 persistent Approval 已建立；下一阶段可进入 Approval decision integration。当前尚未定义为具体 Task，暂不开始执行。

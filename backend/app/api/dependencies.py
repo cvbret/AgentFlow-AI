@@ -5,6 +5,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.agents.runtime import AgentRuntime
+from app.tasks.pause_persistence import HITLPausePersistence
 from app.core.config import get_settings
 from app.db.session import get_session_factory
 from app.llm.client import LLMClient
@@ -59,6 +60,7 @@ def get_task_repository(
 
 
 def get_task_execution_service(
+    session: Session = Depends(get_db_session),
     repository: TaskRepository = Depends(get_task_repository),
     runtime_provider: Callable[[], AgentRuntime] = Depends(
         get_agent_runtime_provider
@@ -67,6 +69,7 @@ def get_task_execution_service(
     return TaskExecutionService(
         repository=repository,
         runtime_provider=runtime_provider,
+        pause_persistence=HITLPausePersistence(session),
     )
 
 

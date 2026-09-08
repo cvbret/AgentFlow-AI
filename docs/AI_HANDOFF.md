@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-021 - Approval Persistence Foundation`
+* **Task:** `TASK-023 - HITL Pause Integration Foundation`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** Approval Domain → ApprovalRepository → ApprovalRecord ORM → PostgreSQL; Domain / ORM separation; `create` / `get_by_id` / `save`; `Approval.restore(...)` rehydration; UUID / JSONB / FK / timezone-aware timestamp persistence; Alembic `0002`; real PostgreSQL verification completed; Approval Persistence Readiness = Ready; 204 passed, 0 skipped, 1 warning
+* **Summary:** `WAITING_APPROVAL` lifecycle state; AgentRuntime wiring to `ProtectedToolExecutionService`; unchanged `ApprovalRequired` propagation; atomic `Approval(PENDING)` + `Task(WAITING_APPROVAL)` pause persistence; conditional RUNNING → FAILED protection; Approval Decision Integration Readiness = Ready; 245 passed, 0 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-021 在真实 PostgreSQL 验证完成后通过 focused Independent Re-Review，最终 Review Result 为 `PASS WITH NOTES`，原 IMPORTANT 已关闭，当前尚未提交。
+TASK-023 已通过最终 Independent Review，最终 Review Result 为 `PASS WITH NOTES`；所有 TASK-023 IMPORTANT 已关闭，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -36,13 +36,16 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: side-effectful Tool 当前仍可暴露给 LLM，但会在 execution boundary 被 fail closed；该行为属于 TASK-019 当前 Scope，不是新的 Technical Debt。
 * Note: `Approval.arguments` 在构造时使用 Level A defensive snapshot；当前未承诺返回对象完全不可变，不阻塞 TASK-020，也不新增 Technical Debt。
 * Note: Alembic 当前通过统一 Settings 读取 LLM 配置；本次使用 session-local harmless placeholders 完成 migration verification，已记录为 TD-005。
+* Note: 本轮 Reviewer 因本地无 `DATABASE_URL` 未独立复跑 PostgreSQL tests，但接受已有明确 validation evidence；不构成 blocker。
+* Note: `ProtectedToolExecutionService` 与 `ToolExecutor` 当前存在 double policy evaluation；policy 无状态且语义一致，暂不重构。
+* Note: FAILED persistence 仍为 best-effort；数据库完全不可用时不能保证 FAILED durable 保存。commit acknowledgement uncertainty 尚未完整 reconciliation，但 conditional RUNNING-only update 不会覆盖已提交的 WAITING_APPROVAL。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Approval / Protected Execution Integration Foundation`
+* **Task:** `Approval Decision Integration Foundation`
 * **Status:** `Not Started`
 
-Approval persistence 已建立；下一阶段可进入 Approval 与 protected execution 的 integration。当前尚未定义为具体 Task，暂不开始执行。
+HITL pause 与 persistent Approval 已建立；下一阶段可进入 Approval decision integration。当前尚未定义为具体 Task，暂不开始执行。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -71,6 +74,11 @@ Approval persistence 已建立；下一阶段可进入 Approval 与 protected ex
 * 新 Approval 只能从 `PENDING` 创建；历史 Approval 通过 `restore(...)` 进行受控恢复。
 * TASK-021：Approval persistence 已建立；`Approval ORM` 不等于 `Approval Domain Entity`，历史实体通过 `Approval.restore(...)` 重新水合。
 * Approval API、Agent pause/resume、ToolExecutionPolicy 自动创建 Approval 以及 approved Tool execution 尚未实现。
+* TASK-022：`ProtectedToolExecutionService` 协调 safety policy、`ApprovalRepository` 与 `ToolExecutor`；protected ToolCall 创建持久化 `PENDING` Approval 后抛出 `ApprovalRequired`。
+* Safe Tool 保持 exactly-once automatic execution；side-effectful Tool 与 persistence failure 均不会调用 `Tool.execute()`。
+* TASK-023：`AgentRuntime → ProtectedToolExecutionService → ApprovalRequired → TaskExecutionService → HITLPausePersistence`，以单次短事务原子持久化 Approval(PENDING) 与 Task(WAITING_APPROVAL)。
+* 失败处理使用 conditional RUNNING → FAILED update；0 rows 不表示 waiting success confirmed，commit acknowledgement uncertainty 尚未完整 reconciliation。
+* Approval decision API、approve/reject application integration、WAITING_APPROVAL resume、checkpoint 和 approved Tool execution 尚未实现。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

@@ -19,7 +19,7 @@ class FakeRuntime:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
 
-    def run(self, messages):
+    def run(self, messages, *, task_id):
         if self.error is not None:
             raise self.error
         return AgentResult(content="96")

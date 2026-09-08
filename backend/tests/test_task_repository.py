@@ -134,6 +134,9 @@ def _task_with_status(index: int, created_at: datetime, status: TaskStatus) -> T
     task = _listing_task(index, created_at)
     if status is TaskStatus.RUNNING:
         task.start(now=created_at)
+    elif status is TaskStatus.WAITING_APPROVAL:
+        task.start(now=created_at)
+        task.mark_waiting_approval(now=created_at)
     elif status is TaskStatus.SUCCEEDED:
         task.start(now=created_at)
         task.succeed(f"result-{index}", now=created_at)
@@ -195,6 +198,7 @@ def test_list_without_status_returns_tasks_in_all_states(session: Session) -> No
         _task_with_status(12, base, TaskStatus.RUNNING),
         _task_with_status(13, base, TaskStatus.SUCCEEDED),
         _task_with_status(14, base, TaskStatus.FAILED),
+        _task_with_status(15, base, TaskStatus.WAITING_APPROVAL),
     ]
     for task in tasks:
         repository.save(task)
@@ -380,3 +384,42 @@ def test_save_does_not_depend_on_post_commit_refresh() -> None:
 
     assert saved.input == "no refresh"
     db_session.refresh.assert_not_called()
+
+
+@pytest.mark.parametrize("durable_status", [TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL, TaskStatus.SUCCEEDED, TaskStatus.FAILED])
+def test_conditional_failure_only_updates_running(session, durable_status):
+    task = Task(input="conditional failure")
+    task.start()
+    repository = TaskRepository(session)
+    repository.save(task)
+    candidate = Task.restore(**task.model_dump())
+    candidate.fail("safe failure")
+    if durable_status is TaskStatus.WAITING_APPROVAL:
+        task.mark_waiting_approval()
+    elif durable_status is TaskStatus.SUCCEEDED:
+        task.succeed("done")
+    elif durable_status is TaskStatus.FAILED:
+        task.fail("existing failure")
+    repository.save(task)
+    updated = repository.save_failed_if_running(candidate)
+    assert updated is (durable_status is TaskStatus.RUNNING)
+    with Session(session.get_bind()) as observer:
+        loaded = TaskRepository(observer).get(task.id)
+        if updated:
+            assert loaded.status is TaskStatus.FAILED
+            assert loaded.error == "safe failure"
+        else:
+            assert loaded.model_dump() == task.model_dump()
+
+
+def test_conditional_failure_rejects_nonfailed_candidate(session):
+    task = Task(input="invalid candidate")
+    with pytest.raises(TaskError, match="FAILED"):
+        TaskRepository(session).save_failed_if_running(task)
+
+
+def test_conditional_failure_missing_task_returns_false(session):
+    task = Task(input="missing")
+    task.start()
+    task.fail("safe failure")
+    assert TaskRepository(session).save_failed_if_running(task) is False

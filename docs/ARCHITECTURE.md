@@ -42,7 +42,7 @@ The API layer handles HTTP request handling, request validation, and response fo
 
 `GET /api/tasks → optional status filter → TaskRepository.list(...) → SQL WHERE → deterministic ordering → limit / offset → TaskListResponse`
 
-允许的 status 值为 `pending`、`running`、`succeeded` 和 `failed`。
+允许的 status 值为 `pending`、`running`、`succeeded`、`failed` 和 `waiting_approval`。
 
 `POST /api/agent/run` 成功响应返回 `task_id + answer`，其中 `task_id` 来自 `TaskExecutionService` 返回的真实 Domain `Task.id`。当前资源闭环为：
 
@@ -96,7 +96,13 @@ Tool 还可携带内部 execution safety metadata，例如 `side_effect_free`。
 
 仅当 `side_effect_free=True` 时允许 automatic execution；未知或未标注的 Tool 默认按可能具有副作用处理，并在 `Tool.execute()` 前 fail closed。安全决策来自 Registry 返回的真实 Tool，不信任外部 ToolCall 或 caller-supplied safety flag。该 metadata 不属于 provider-facing tool schema，side-effectful Tool 仍可注册并暴露给 provider，但执行时会被拒绝。AgentRuntime 不直接承担该策略判断。
 
-当前尚未实现 protected execution mechanism，因此 approval、idempotency、safe Tool retry 和 workflow pause/resume 仍属于后续能力。
+Protected ToolCall request 由 `ProtectedToolExecutionService` 负责：接收真实 `task_id` 与 `ToolCall`，复用 `ToolExecutionPolicy`。safe ToolCall 委托 `ToolExecutor` 执行；side-effectful Tool 仅构造未持久化的 `PENDING` Approval，通过携带该实体及 identity 字段的 `ApprovalRequired` 立即停止执行。
+
+TASK-023 路径为 `TaskExecutionService → AgentRuntime.run(task_id) → ProtectedToolExecutionService`。Runtime 无数据库依赖。TaskExecutionService 捕获 signal，在通过 `Task.restore` 构造的候选 Task 上执行 WAITING_APPROVAL transition，再调用 `HITLPausePersistence`：同一请求 Session 中 stage Approval、flush、stage Task WAITING、flush、单次 commit。事务只覆盖这一短持久化窗口，不跨越 Agent/LLM 调用。成功后才返回 waiting Task。
+
+任一写入或 commit 失败时回滚整个 pause transaction；原 Domain Task 仍为 RUNNING，随后合法进入 FAILED 并单独 best-effort 保存。失败持久化使用单条带 `id` 与 `status=RUNNING` 条件的 UPDATE，仅 durable state 仍是 RUNNING 才更新为 FAILED。若 commit 已成功但确认丢失，更新零行，保留 WAITING_APPROVAL；零行不代表已确认暂停成功。FAILED 保存本身也可能失败，原始错误继续传播；不返回伪造的 waiting 成功。Standalone Repository create/save 继续拥有 commit，新增 staging 方法不 commit。详见 ADR-003 / TD-006。
+
+`POST /api/agent/run` 返回 `task_id + status + answer`，其中 status 为 `succeeded` 或 `waiting_approval`，暂停时 answer 为 null。Task 查询与过滤支持小写 `waiting_approval`。当前未实现 resume、Approval decision API、approved Tool execution 或 idempotency。`ProtectedToolExecutionService` 与 `ToolExecutor` 当前存在无状态且语义一致的 double policy evaluation，暂不为此扩大架构范围。
 
 ## State Layer / 状态层
 
@@ -106,7 +112,7 @@ Tool 还可携带内部 execution safety metadata，例如 `side_effect_free`。
 
 The Task Service persists the task lifecycle through:
 
-`PENDING → RUNNING → SUCCEEDED / FAILED`
+`PENDING → RUNNING → SUCCEEDED / FAILED / WAITING_APPROVAL`
 
 `TaskExecutionService` coordinates this lifecycle with the Agent Runtime. Each API request uses a request-scoped SQLAlchemy Session.
 

@@ -1,13 +1,12 @@
 import os
 from collections.abc import Iterator
 from datetime import timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete, inspect
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.approvals import ApprovalStatus
@@ -17,6 +16,7 @@ from app.llm.schemas import ToolCall
 from app.protected_execution import ApprovalRequired, ProtectedToolExecutionService
 from app.tasks import Task
 from app.tasks.repository import TaskRepository
+from app.tasks.pause_persistence import HITLPausePersistence
 from app.tools.base import Tool
 from app.tools.exceptions import ToolNotFoundError
 from app.tools.implementations.calculator import CalculatorInput, CalculatorTool
@@ -55,12 +55,18 @@ def make_tool_call(
     )
 
 
-def test_safe_tool_executes_without_creating_approval() -> None:
+@pytest.fixture
+def no_standalone_commit():
+    with patch.object(ApprovalRepository, "create") as create:
+        yield
+    create.assert_not_called()
+
+
+def test_safe_tool_executes_without_creating_approval(no_standalone_commit) -> None:
     registry = ToolRegistry()
     tool = CalculatorTool()
     registry.register(tool)
-    approval_repository = Mock(spec=ApprovalRepository)
-    service = ProtectedToolExecutionService(registry, approval_repository)
+    service = ProtectedToolExecutionService(registry)
 
     tool_call = make_tool_call(name="calculator")
     with patch.object(tool, "execute", wraps=tool.execute) as execute:
@@ -69,12 +75,10 @@ def test_safe_tool_executes_without_creating_approval() -> None:
     execute.assert_called_once_with(tool_call.arguments)
 
     assert result.content == "5.0"
-    approval_repository.create.assert_not_called()
 
 
-def test_unknown_tool_raises_without_creating_approval() -> None:
-    approval_repository = Mock(spec=ApprovalRepository)
-    service = ProtectedToolExecutionService(ToolRegistry(), approval_repository)
+def test_unknown_tool_raises_without_creating_approval(no_standalone_commit) -> None:
+    service = ProtectedToolExecutionService(ToolRegistry())
 
     with pytest.raises(ToolNotFoundError):
         service.execute(
@@ -82,26 +86,24 @@ def test_unknown_tool_raises_without_creating_approval() -> None:
             tool_call=make_tool_call(name="unknown_tool"),
         )
 
-    approval_repository.create.assert_not_called()
 
 
 @pytest.mark.parametrize("tool_type", [RecordingUnannotatedTool, RecordingSideEffectfulTool])
 def test_protected_tool_creates_pending_approval_and_never_executes(
     tool_type: type[RecordingUnannotatedTool],
+    no_standalone_commit,
 ) -> None:
     tool = tool_type()
     registry = ToolRegistry()
     registry.register(tool)
-    approval_repository = Mock(spec=ApprovalRepository)
     task_id = uuid4()
     tool_call = make_tool_call(name=tool.name)
-    service = ProtectedToolExecutionService(registry, approval_repository)
+    service = ProtectedToolExecutionService(registry)
 
     with pytest.raises(ApprovalRequired) as raised:
         service.execute(task_id=task_id, tool_call=tool_call)
 
-    approval_repository.create.assert_called_once()
-    approval = approval_repository.create.call_args.args[0]
+    approval = raised.value.approval
     assert approval.status is ApprovalStatus.PENDING
     assert approval.decided_at is None
     assert approval.task_id == task_id
@@ -112,23 +114,6 @@ def test_protected_tool_creates_pending_approval_and_never_executes(
     assert raised.value.task_id == task_id
     assert raised.value.tool_call_id == tool_call.id
     assert raised.value.tool_name == tool.name
-    assert tool.execution_count == 0
-
-
-def test_approval_persistence_failure_remains_fail_closed() -> None:
-    tool = RecordingUnannotatedTool()
-    registry = ToolRegistry()
-    registry.register(tool)
-    approval_repository = Mock(spec=ApprovalRepository)
-    approval_repository.create.side_effect = SQLAlchemyError("database unavailable")
-    service = ProtectedToolExecutionService(registry, approval_repository)
-
-    with pytest.raises(SQLAlchemyError, match="database unavailable"):
-        service.execute(
-            task_id=uuid4(),
-            tool_call=make_tool_call(name=tool.name, call_id="call_failed"),
-        )
-
     assert tool.execution_count == 0
 
 
@@ -167,18 +152,24 @@ def test_protected_execution_persists_pending_approval_on_postgresql(
     session: Session,
 ) -> None:
     task = Task(input="protected execution")
+    task.start()
     TaskRepository(session).save(task)
     tool = RecordingSideEffectfulTool()
     registry = ToolRegistry()
     registry.register(tool)
-    repository = ApprovalRepository(session)
-    service = ProtectedToolExecutionService(registry, repository)
+    service = ProtectedToolExecutionService(registry)
     tool_call = make_tool_call(name=tool.name, call_id="call_postgres")
 
     with pytest.raises(ApprovalRequired) as raised:
         service.execute(task_id=task.id, tool_call=tool_call)
 
-    # A separate Session must see the committed Approval after the signal.
+    # The signal itself is unpersisted; only atomic pause makes it durable.
+    with Session(session.get_bind()) as read_session:
+        assert ApprovalRepository(read_session).get_by_id(raised.value.approval_id) is None
+    task.mark_waiting_approval()
+    HITLPausePersistence(session).save(task, raised.value.approval)
+
+    # A separate Session must see the committed Approval after atomic pause.
     with Session(session.get_bind()) as read_session:
         loaded = ApprovalRepository(read_session).get_by_id(raised.value.approval_id)
 

@@ -28,6 +28,7 @@ from app.llm.schemas import ChatMessage
 from app.tasks import Task
 from app.tasks.repository import TaskRepository
 from app.tasks.service import TaskExecutionService
+from app.tasks.pause_persistence import HITLPausePersistence
 from app.tools.exceptions import ToolExecutionError, ToolNotFoundError
 
 
@@ -37,7 +38,7 @@ class FakeAgentRuntime:
         self.result = result or AgentResult(content="96")
         self.error: Exception | None = None
 
-    def run(self, messages: list[ChatMessage]) -> AgentResult:
+    def run(self, messages: list[ChatMessage], **context) -> AgentResult:
         self.messages.append(messages)
         if self.error is not None:
             raise self.error
@@ -119,6 +120,7 @@ def test_agent_run_uses_task_id_returned_by_service(
     assert response.status_code == 200
     assert response.json() == {
         "task_id": str(task.id),
+        "status": "succeeded",
         "answer": "96",
     }
     service.execute.assert_called_once_with("service task")
@@ -222,9 +224,9 @@ def test_agent_run_keeps_provider_mapping_when_failed_persistence_fails(
     repository.save.side_effect = [
         None,
         None,
-        SQLAlchemyError("failed state save failed"),
     ]
-    service = TaskExecutionService(repository, lambda: runtime)
+    repository.save_failed_if_running.side_effect = SQLAlchemyError("failed state save failed")
+    service = TaskExecutionService(repository, lambda: runtime, Mock(spec=HITLPausePersistence))
     app.dependency_overrides[get_task_execution_service] = lambda: service
 
     response = client.post(
@@ -234,7 +236,8 @@ def test_agent_run_keeps_provider_mapping_when_failed_persistence_fails(
 
     assert response.status_code == 502
     assert response.json() == {"detail": "LLM provider request failed."}
-    assert repository.save.call_count == 3
+    assert repository.save.call_count == 2
+    repository.save_failed_if_running.assert_called_once()
     assert "failed state save failed" not in response.text
 
 

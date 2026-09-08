@@ -38,7 +38,7 @@ class TaskListResponse(BaseModel):
     offset: int
 
 
-TaskStatusQuery = Literal["pending", "running", "succeeded", "failed"]
+TaskStatusQuery = Literal["pending", "running", "succeeded", "failed", "waiting_approval"]
 
 
 router = APIRouter()

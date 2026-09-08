@@ -1,4 +1,5 @@
 import json
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -91,7 +92,11 @@ def test_runtime_returns_direct_final_answer() -> None:
         [{"choices": [{"message": {"content": "Direct answer"}}]}]
     )
 
-    result = runtime.run([ChatMessage(role="user", content="Hello")])
+    result = runtime.run(
+        [ChatMessage(role="user", content="Hello")],
+        task_id=uuid4(),
+
+    )
 
     assert result.content == "Direct answer"
 
@@ -108,7 +113,11 @@ def test_runtime_executes_one_tool_call_then_returns_final_answer() -> None:
         payloads,
     )
 
-    result = runtime.run([ChatMessage(role="user", content="Calculate 12 times 8")])
+    result = runtime.run(
+        [ChatMessage(role="user", content="Calculate 12 times 8")],
+        task_id=uuid4(),
+
+    )
 
     assert result.content == "The answer is 96."
     assert len(payloads) == 2
@@ -146,7 +155,11 @@ def test_runtime_supports_two_tool_rounds() -> None:
         payloads,
     )
 
-    result = runtime.run([ChatMessage(role="user", content="Calculate in steps")])
+    result = runtime.run(
+        [ChatMessage(role="user", content="Calculate in steps")],
+        task_id=uuid4(),
+
+    )
 
     assert result.content == "Final: 20"
     assert len(payloads) == 3
@@ -171,7 +184,11 @@ def test_runtime_executes_multiple_tool_calls_sequentially() -> None:
         payloads,
     )
 
-    result = runtime.run([ChatMessage(role="user", content="Do both calculations")])
+    result = runtime.run(
+        [ChatMessage(role="user", content="Do both calculations")],
+        task_id=uuid4(),
+
+    )
 
     assert result.content == "Results: 5 and 5"
     assert payloads[1]["messages"][-2:] == [
@@ -194,7 +211,10 @@ def test_runtime_raises_when_max_steps_are_exceeded() -> None:
     )
 
     with pytest.raises(AgentMaxStepsExceededError, match="max_steps=2"):
-        runtime.run([ChatMessage(role="user", content="Keep calculating")])
+        runtime.run(
+            [ChatMessage(role="user", content="Keep calculating")],
+            task_id=uuid4(),
+        )
 
 
 def test_runtime_max_steps_one_executes_tool_without_second_llm_call() -> None:
@@ -218,7 +238,10 @@ def test_runtime_max_steps_one_executes_tool_without_second_llm_call() -> None:
     )
 
     with pytest.raises(AgentMaxStepsExceededError, match="max_steps=1"):
-        runtime.run([ChatMessage(role="user", content="Keep calculating")])
+        runtime.run(
+            [ChatMessage(role="user", content="Keep calculating")],
+            task_id=uuid4(),
+        )
 
     assert len(payloads) == 1
     assert len(executed_inputs) == 1
@@ -253,7 +276,10 @@ def test_runtime_propagates_tool_errors(
     )
 
     with pytest.raises(error_type, match=error_match):
-        runtime.run([ChatMessage(role="user", content="Use a tool")])
+        runtime.run(
+            [ChatMessage(role="user", content="Use a tool")],
+            task_id=uuid4(),
+        )
 
 
 def test_runtime_propagates_provider_errors() -> None:
@@ -264,7 +290,10 @@ def test_runtime_propagates_provider_errors() -> None:
     )
 
     with pytest.raises(LLMProviderError, match="HTTP 503"):
-        runtime.run([ChatMessage(role="user", content="Use the model")])
+        runtime.run(
+            [ChatMessage(role="user", content="Use the model")],
+            task_id=uuid4(),
+        )
 
 
 @pytest.mark.parametrize("content", [None, "", "   ", "\n"])
@@ -274,4 +303,7 @@ def test_runtime_rejects_empty_final_response(content: str | None) -> None:
     )
 
     with pytest.raises(InvalidLLMResponseError, match="content"):
-        runtime.run([ChatMessage(role="user", content="Use the model")])
+        runtime.run(
+            [ChatMessage(role="user", content="Use the model")],
+            task_id=uuid4(),
+        )

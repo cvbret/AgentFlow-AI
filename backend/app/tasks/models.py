@@ -30,6 +30,7 @@ def _as_utc(value: datetime) -> datetime:
 class TaskStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
 
@@ -57,10 +58,12 @@ class Task(BaseModel):
         restoring = bool(info.context and info.context.get("restore"))
         if not restoring and self.status is not TaskStatus.PENDING:
             raise ValueError("new Tasks must start in PENDING state")
-        if self.status in (TaskStatus.PENDING, TaskStatus.RUNNING):
+        if self.status in (
+            TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL
+        ):
             if self.result is not None or self.error is not None:
                 raise ValueError(
-                    "PENDING and RUNNING Tasks must not have result or error"
+                    "PENDING, RUNNING and WAITING_APPROVAL Tasks must not have result or error"
                 )
         elif self.status is TaskStatus.SUCCEEDED:
             if self.error is not None:
@@ -119,6 +122,12 @@ class Task(BaseModel):
         object.__setattr__(self, "result", None)
         object.__setattr__(self, "error", None)
         object.__setattr__(self, "status", TaskStatus.RUNNING)
+        object.__setattr__(self, "updated_at", timestamp)
+
+    def mark_waiting_approval(self, *, now: datetime | None = None) -> None:
+        self._require_state(TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL)
+        timestamp = self._transition_timestamp(now)
+        object.__setattr__(self, "status", TaskStatus.WAITING_APPROVAL)
         object.__setattr__(self, "updated_at", timestamp)
 
     def succeed(self, result: str, *, now: datetime | None = None) -> None:

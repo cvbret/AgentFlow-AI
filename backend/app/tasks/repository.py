@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -14,22 +14,55 @@ class TaskRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    def stage_save(self, task: Task) -> Task:
+        """Stage a Task write; the caller owns commit and rollback."""
+        record = self._session.get(TaskRecord, task.id)
+        if record is None:
+            record = self._to_record(task)
+            self._session.add(record)
+        else:
+            self._update_record(record, task)
+        return self._to_domain(record)
+
     def save(self, task: Task) -> Task:
         try:
-            record = self._session.get(TaskRecord, task.id)
-            if record is None:
-                record = self._to_record(task)
-                self._session.add(record)
-            else:
-                self._update_record(record, task)
-
-            persisted_task = self._to_domain(record)
+            persisted_task = self.stage_save(task)
             self._session.commit()
         except SQLAlchemyError:
             self._session.rollback()
             raise
-
         return persisted_task
+
+    def save_failed_if_running(self, task: Task) -> bool:
+        """Persist a valid FAILED candidate only while durable state is RUNNING.
+
+        False means no matching RUNNING row, not confirmed pause success.
+        """
+        candidate = Task.restore(**task.model_dump())
+        if candidate.status is not TaskStatus.FAILED:
+            raise TaskError("Conditional failure persistence requires a FAILED Task")
+        try:
+            result = self._session.execute(
+                update(TaskRecord)
+                .where(
+                    TaskRecord.id == candidate.id,
+                    TaskRecord.status == TaskStatus.RUNNING.value,
+                )
+                .values(
+                    status=TaskStatus.FAILED.value,
+                    result=candidate.result,
+                    error=candidate.error,
+                    updated_at=candidate.updated_at,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            updated = result.rowcount == 1
+            self._session.commit()
+            self._session.expire_all()
+            return updated
+        except SQLAlchemyError:
+            self._session.rollback()
+            raise
 
     def get(self, task_id: UUID) -> Task | None:
         record = self._session.get(TaskRecord, task_id)

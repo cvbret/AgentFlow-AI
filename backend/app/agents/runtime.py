@@ -1,10 +1,11 @@
 from collections.abc import Sequence
+from uuid import UUID
 
 from pydantic import BaseModel
 
 from app.llm.client import InvalidLLMResponseError, LLMClient
 from app.llm.schemas import ChatMessage
-from app.tools.executor import ToolExecutor
+from app.protected_execution import ProtectedToolExecutionService
 from app.tools.registry import ToolRegistry
 
 
@@ -37,13 +38,20 @@ class AgentRuntime:
 
         self._llm_client = llm_client
         self._tool_registry = tool_registry
-        self._tool_executor = ToolExecutor(tool_registry)
         self._max_steps = max_steps
 
     def close(self) -> None:
         self._llm_client.close()
 
-    def run(self, initial_messages: Sequence[ChatMessage]) -> AgentResult:
+    def run(
+        self,
+        initial_messages: Sequence[ChatMessage],
+        *,
+        task_id: UUID,
+    ) -> AgentResult:
+        protected_execution = ProtectedToolExecutionService(
+            self._tool_registry
+        )
         messages = list(initial_messages)
         tool_definitions = self._tool_registry.list()
 
@@ -67,7 +75,9 @@ class AgentRuntime:
                 )
             )
             for tool_call in response.tool_calls:
-                execution_result = self._tool_executor.execute(tool_call)
+                execution_result = protected_execution.execute(
+                    task_id=task_id, tool_call=tool_call
+                )
                 messages.append(
                     ChatMessage(
                         role="tool",

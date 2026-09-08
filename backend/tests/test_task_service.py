@@ -8,6 +8,7 @@ from app.llm.client import LLMProviderError
 from app.tasks import TaskStatus
 from app.tasks.repository import TaskRepository
 from app.tasks.service import TaskExecutionService
+from app.tasks.pause_persistence import HITLPausePersistence
 
 
 class FakeRuntime:
@@ -16,7 +17,7 @@ class FakeRuntime:
         self.error = error
         self.calls = 0
 
-    def run(self, messages):
+    def run(self, messages, *, task_id):
         self.calls += 1
         if self.error is not None:
             raise self.error
@@ -27,7 +28,7 @@ def make_service(
     repository: Mock,
     runtime: FakeRuntime,
 ) -> TaskExecutionService:
-    return TaskExecutionService(repository, lambda: runtime)
+    return TaskExecutionService(repository, lambda: runtime, Mock(spec=HITLPausePersistence))
 
 
 def make_recording_repository() -> tuple[
@@ -41,6 +42,7 @@ def make_recording_repository() -> tuple[
         snapshots.append((task.status, task.result, task.error))
 
     repository.save.side_effect = save
+    repository.save_failed_if_running.side_effect = save
     return repository, snapshots
 
 
@@ -81,7 +83,8 @@ def test_failed_persistence_does_not_replace_agent_error() -> None:
     repository = Mock(spec=TaskRepository)
     agent_error = LLMProviderError("provider secret and raw payload")
     persistence_error = SQLAlchemyError("failed state save failed")
-    repository.save.side_effect = [None, None, persistence_error]
+    repository.save.side_effect = [None, None]
+    repository.save_failed_if_running.side_effect = persistence_error
     runtime = FakeRuntime(error=agent_error)
 
     with pytest.raises(LLMProviderError) as raised:
@@ -89,14 +92,15 @@ def test_failed_persistence_does_not_replace_agent_error() -> None:
 
     assert raised.value is agent_error
     assert raised.value.__cause__ is persistence_error
-    assert repository.save.call_count == 3
+    assert repository.save.call_count == 2
+    repository.save_failed_if_running.assert_called_once()
 
 
 def test_initial_persistence_failure_does_not_execute_runtime() -> None:
     repository = Mock(spec=TaskRepository)
     repository.save.side_effect = SQLAlchemyError("initial save failed")
     runtime_provider = Mock()
-    service = TaskExecutionService(repository, runtime_provider)
+    service = TaskExecutionService(repository, runtime_provider, Mock(spec=HITLPausePersistence))
 
     with pytest.raises(SQLAlchemyError, match="initial save failed"):
         service.execute("calculate")
@@ -111,7 +115,7 @@ def test_running_persistence_failure_does_not_execute_runtime() -> None:
         SQLAlchemyError("running save failed"),
     ]
     runtime_provider = Mock()
-    service = TaskExecutionService(repository, runtime_provider)
+    service = TaskExecutionService(repository, runtime_provider, Mock(spec=HITLPausePersistence))
 
     with pytest.raises(SQLAlchemyError, match="running save failed"):
         service.execute("calculate")

@@ -261,3 +261,61 @@ def test_constructor_rejects_invalid_lifecycle_state(
 ) -> None:
     with pytest.raises(ValidationError):
         Task(input="task", status=status, result=result, error=error)
+
+
+
+def test_running_task_can_wait_for_approval() -> None:
+    task = make_task()
+    task.start()
+    timestamp = task.updated_at + timedelta(seconds=1)
+    task.mark_waiting_approval(now=timestamp)
+    assert task.status is TaskStatus.WAITING_APPROVAL
+    assert task.result is None and task.error is None
+    assert task.updated_at == timestamp
+    with pytest.raises(AttributeError):
+        task.status = TaskStatus.RUNNING
+
+
+@pytest.mark.parametrize("source", [TaskStatus.PENDING, TaskStatus.SUCCEEDED, TaskStatus.FAILED, TaskStatus.WAITING_APPROVAL])
+def test_waiting_approval_rejects_other_sources(source: TaskStatus) -> None:
+    task = make_task()
+    if source is not TaskStatus.PENDING:
+        task.start()
+    if source is TaskStatus.SUCCEEDED:
+        task.succeed("done")
+    elif source is TaskStatus.FAILED:
+        task.fail("failed")
+    elif source is TaskStatus.WAITING_APPROVAL:
+        task.mark_waiting_approval()
+    snapshot = task.model_dump()
+    with pytest.raises(InvalidTaskStateTransitionError):
+        task.mark_waiting_approval()
+    assert task.model_dump() == snapshot
+
+
+@pytest.mark.parametrize("method,args", [("start", ()), ("succeed", ("done",)), ("fail", ("failed",))])
+def test_waiting_approval_has_no_outgoing_transition(method, args) -> None:
+    task = make_task()
+    task.start()
+    task.mark_waiting_approval()
+    with pytest.raises(InvalidTaskStateTransitionError):
+        getattr(task, method)(*args)
+    assert task.status is TaskStatus.WAITING_APPROVAL
+
+
+@pytest.mark.parametrize("field", ["result", "error"])
+def test_restore_rejects_waiting_approval_with_result_or_error(field) -> None:
+    task = make_task()
+    values = task.model_dump()
+    values.update(status=TaskStatus.WAITING_APPROVAL)
+    values[field] = "invalid"
+    with pytest.raises(TaskError):
+        Task.restore(**values)
+
+
+def test_waiting_approval_rejects_backward_timestamp() -> None:
+    task = make_task()
+    task.start()
+    with pytest.raises(TaskError):
+        task.mark_waiting_approval(now=task.updated_at - timedelta(seconds=1))
+    assert task.status is TaskStatus.RUNNING

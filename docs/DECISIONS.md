@@ -68,3 +68,31 @@ Model `Approval` as an independent domain entity associated conceptually with a 
 ### Revisit Trigger
 
 Revisit this decision only if a demonstrated workflow or persistence requirement shows that the independent Approval boundary no longer represents the domain accurately.
+
+
+## ADR-003 - Atomic persistence for the HITL pause
+
+**Status:** Accepted; final Re-Review validated.
+
+### Context
+
+The first TASK-023 implementation committed Approval and Task WAITING separately. Independent Review rejected that design after PostgreSQL failure injection demonstrated a durable PENDING Approval with a RUNNING Task after execution had stopped. This revision replaces that proposal; it is not an accepted residual compromise.
+
+### Decision
+
+HITL pause durable state requires Approval(PENDING) and Task(WAITING_APPROVAL) in one atomic transaction. ProtectedToolExecutionService constructs an unpersisted Approval and raises ApprovalRequired with the entity and its existing identity fields. Runtime passes the signal unchanged and has no database dependency.
+
+TaskExecutionService builds a waiting candidate through Task.restore and the domain transition. HITLPausePersistence owns a short transaction on one request-scoped Session: stage Approval, flush, stage Task WAITING, flush, commit once. The transaction starts only after the protected request is identified; it is never held across Agent/LLM execution. Standalone repository create/save still commit; explicit stage_create/stage_save leave transaction ownership to the coordinator.
+
+### Consequences
+
+- The API returns waiting_approval only after the atomic commit succeeds.
+- A statement/commit failure rolls back both writes. The original RUNNING domain Task remains available for a legal FAILED transition and a separate best-effort save; the original exception propagates. A failed FAILED save does not guarantee durable FAILED.
+- Rollback failure invalidates the Session connection and preserves the original persistence exception; no Tool fallback is allowed.
+- PostgreSQL INSERT, WAITING UPDATE, and deferred-trigger COMMIT failures are formal regressions, alongside commit counting and pre/post-commit visibility checks.
+- A lost commit acknowledgement may raise after PostgreSQL has committed the pause. Generic execution failure handling therefore persists a valid FAILED candidate through a single conditional UPDATE WHERE id matches AND status = RUNNING. A rowcount of zero conveys no confirmed replacement state; the original exception still propagates. This protects committed WAITING_APPROVAL without read-then-write or reconciliation. Real PostgreSQL commit followed by simulated OperationalError is covered at both Service and API boundaries.
+- No resume, checkpoint, decision API, or approved execution is implemented.
+
+### Revisit Trigger
+
+Revisit recovery for unknown transaction outcomes and checkpoint storage when resume or reconciliation is explicitly scoped.

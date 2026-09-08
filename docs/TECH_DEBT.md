@@ -178,3 +178,30 @@ During a future testing and engineering-configuration phase, choose one explicit
 ### Priority / 优先级
 
 Low
+
+
+## TD-006 - Approval and Task pause use separate commits
+
+**Status:** `Closed`
+
+**Resolved by:** TASK-023 Focused Atomic Pause Fix (final Independent Re-Review: PASS WITH NOTES).
+
+### Current Situation / 当前情况
+
+The original two-commit pause was rejected in review. HITLPausePersistence now stages Approval and Task WAITING on one Session and commits once. PostgreSQL INSERT failure, WAITING UPDATE failure, and a deferred trigger failing at COMMIT all rolled back the Approval; the subsequent best-effort FAILED save succeeded in these tests.
+
+### Reason Accepted / 接受原因
+
+The original proposal deferred transaction coordination, but review established this as an IMPORTANT defect rather than acceptable debt. It has been replaced by atomic persistence.
+
+### Risk / 风险
+
+The split-commit window is closed. A database outage can still prevent the separate best-effort FAILED save, and a lost commit acknowledgement can leave an unknown transaction outcome. Failure persistence now uses a conditional RUNNING → FAILED UPDATE, so acknowledgement loss cannot make the failure handler overwrite a committed WAITING_APPROVAL. Real PostgreSQL acknowledgement-loss regression preserves WAITING_APPROVAL + PENDING Approval. No automatic recovery/reconciliation or confirmed-success inference is claimed here; TD-006 remains Closed.
+
+### Resolution Plan / 解决计划
+
+Implemented explicit staging and a short dedicated pause transaction; retain PostgreSQL failure-injection, single-commit, and visibility regressions. Future recovery scope may address unknown outcomes.
+
+### Priority / 优先级
+
+Medium (resolved)

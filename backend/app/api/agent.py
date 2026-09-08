@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -12,6 +13,7 @@ from app.llm.client import (
     LLMProviderError,
 )
 from app.tasks.service import TaskExecutionService
+from app.tasks.models import TaskStatus
 from app.tools.exceptions import (
     ToolExecutionError,
     ToolInputValidationError,
@@ -32,7 +34,8 @@ class AgentRunRequest(BaseModel):
 
 class AgentRunResponse(BaseModel):
     task_id: UUID
-    answer: str
+    status: Literal["succeeded", "waiting_approval"]
+    answer: str | None
 
 
 _ERROR_RESPONSES: dict[type[Exception], tuple[int, str]] = {
@@ -66,6 +69,10 @@ def run_agent(
     service: TaskExecutionService = Depends(get_task_execution_service),
 ) -> AgentRunResponse:
     task = service.execute(request.message)
-    if task.result is None:
+    if task.status is TaskStatus.WAITING_APPROVAL:
+        return AgentRunResponse(
+            task_id=task.id, status="waiting_approval", answer=None
+        )
+    if task.status is not TaskStatus.SUCCEEDED or task.result is None:
         raise RuntimeError("Succeeded Task is missing a result")
-    return AgentRunResponse(task_id=task.id, answer=task.result)
+    return AgentRunResponse(task_id=task.id, status="succeeded", answer=task.result)
