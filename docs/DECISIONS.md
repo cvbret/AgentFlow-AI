@@ -118,3 +118,30 @@ The coordinator joins the short transaction opened by the service's context read
 - Statement/commit failures rollback and propagate, without failure-state fallback. A lost commit acknowledgement may report an error after both rejections committed; no destructive rewrite occurs.
 - Existing standalone repository methods remain compatible; callers needing lifecycle rejection must use the application Service/coordinator.
 - No resume, checkpoint or approved Tool execution is provided.
+
+## ADR-005 - Incremental LangGraph Adoption
+
+**Status:** Accepted; final Independent Review validated.
+
+### Context
+
+ADR-001 deferred LangGraph during initial runtime development. Durable pause/resume/restart recovery is now a real orchestration requirement after TASK-025. CURRENT_STATE and AI_HANDOFF evaluation status predates this decision. Historical ADRs remain intact.
+
+### Decision
+
+Adopt LangGraph incrementally. LangGraph owns workflow orchestration, workflow state, checkpoint, interrupt, resume and routing. AgentFlow retains Domain, Application Services, Repositories, business persistence, Tool safety, LLM reliability and FastAPI.
+
+TASK-026 adds an isolated synchronous StateGraph and PostgreSQL PostgresSaver. State contains only AgentFlow task_id and resume_result strings. AgentFlow Task.id maps to configurable.thread_id through one helper. Existing AgentRuntime and API are unchanged.
+
+Checkpoint setup is explicit deployment initialization through python -m app.workflows.setup. Official setup owns checkpoint tables; no internal DDL is copied into Alembic and no FastAPI startup setup is added.
+
+### Consequences
+
+- Restart proof uses separate Python processes and Command(resume), with no resubmitted initial input.
+- New dependencies include langchain-core transitively; no AgentExecutor is used.
+- Business/checkpoint commits have separate ownership. Their failure consistency must be designed in a future integration task. No shared internal transaction or reconciliation is introduced.
+- AgentRuntime migration, approved resume, idempotency and Execution Ledger remain future capabilities, not technical debt.
+
+### Revisit Trigger
+
+Before wiring business actions into the graph, design replay safety, resume authorization and checkpoint/business consistency explicitly.

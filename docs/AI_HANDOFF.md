@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-025 - Approval Decision to Task Lifecycle Integration`
-* **Review Result:** `PASS WITH NOTES`
-* **Summary:** `TaskStatus.REJECTED`; `WAITING_APPROVAL → REJECTED`; REJECTED kept distinct from FAILED; atomic Approval + Task rejection; approve remains `APPROVED + WAITING_APPROVAL`; cross-entity approve/reject concurrency protection; `status=rejected` filtering; no Tool execution; Resume Architecture Readiness = Ready; 277 passed, 0 skipped, 1 warning
+* **Task:** `TASK-026 - LangGraph Durable Workflow Foundation`
+* **Review Result:** `PASS`
+* **Summary:** incremental LangGraph adoption; minimal PostgreSQL-backed StateGraph foundation; Task.id → configurable.thread_id mapping; durable interrupt; `Command(resume)` continuation; real PostgreSQL cross-process fresh Graph/Saver recovery; no AgentRuntime migration; 285 passed, 0 skipped, 0 warnings
 * **Git commit:** `Pending commit`
 
-TASK-025 已通过最终 Independent Review，最终 Review Result 为 `PASS WITH NOTES`；无 BLOCKER 或 IMPORTANT，当前尚未提交。
+TASK-026 已通过最终 Independent Review，最终 Review Result 为 `PASS`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -36,24 +36,22 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: side-effectful Tool 当前仍可暴露给 LLM，但会在 execution boundary 被 fail closed；该行为属于 TASK-019 当前 Scope，不是新的 Technical Debt。
 * Note: `Approval.arguments` 在构造时使用 Level A defensive snapshot；当前未承诺返回对象完全不可变，不阻塞 TASK-020，也不新增 Technical Debt。
 * Note: Alembic 当前通过统一 Settings 读取 LLM 配置；本次使用 session-local harmless placeholders 完成 migration verification，已记录为 TD-005。
-* Note: 本轮 Reviewer 因本地无 `DATABASE_URL` 未独立复跑 PostgreSQL tests，但接受已有明确 validation evidence；不构成 blocker。
-* Note: `ProtectedToolExecutionService` 与 `ToolExecutor` 当前存在 double policy evaluation；policy 无状态且语义一致，暂不重构。
-* Note: FAILED persistence 仍为 best-effort；数据库完全不可用时不能保证 FAILED durable 保存。commit acknowledgement uncertainty 尚未完整 reconciliation，但 conditional RUNNING-only update 不会覆盖已提交的 WAITING_APPROVAL。
-* Note: commit acknowledgement uncertainty 仍可能造成 API 返回错误而 decision 实际已提交；当前不做完整 reconciliation。
-* Note: 未来 WAITING lifecycle continuation 与 Approval decision 的并发协调需要重新评估；当前 Task eligibility 仅允许 `WAITING_APPROVAL`。
-* Note: 建议未来补充 Approval 已更新后 Task conditional zero-row 的正式回归；当前不阻塞 TASK-025。
+* Note: `TD-001 / StarletteDeprecationWarning` 仍是既有 Technical Debt；TASK-026 final suite 报告 0 warnings。
+* Note: AgentFlow business persistence 与 LangGraph checkpoint persistence 是独立 durable boundaries，当前没有跨两者 transaction atomicity、reconciliation 或 exactly-once 保证。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Resume / Checkpoint Architecture Evaluation`
+* **Task:** `TASK-027 - AgentRuntime → LangGraph Orchestration Integration`
 * **Status:** `Not Started`
 
-当前 durable pause、human decision 和 reject lifecycle 已稳定；下一阶段评估 checkpoint/resume architecture。当前尚未定义为具体 Task，暂不开始执行。
+当前 LangGraph durable workflow foundation 已建立；下一阶段可进入 AgentRuntime orchestration integration。当前不开始执行 TASK-027。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
 * V1 暂不引入 LangChain。
-* V1 暂不引入 LangGraph。
+* LangGraph has been adopted incrementally from TASK-026。
+* LangGraph 当前作为 orchestration layer，负责 workflow state、checkpoint、interrupt、resume 和 routing foundation。
+* 当前 AgentRuntime 仍为既有 custom runtime；TASK-026 未实现 AgentRuntime → LangGraph migration。
 * 不提前引入 MCP。
 * 不提前实现 Multi-Agent。
 * Repository 是 Source of Truth。
@@ -72,7 +70,7 @@ Review compatibility if the public error hierarchy is formalized later.
 * TASK-018：Tool execution safety metadata foundation 已建立；unknown/unannotated Tool 默认按可能有副作用处理，Calculator 显式 `side_effect_free=True`。
 * TASK-019：ToolExecutionPolicy 已进入 Tool execution boundary；仅 `side_effect_free=True` 允许 automatic execution，否则在 `Tool.execute()` 前 fail closed。
 * Tool safety decision 来自 Registry 返回的真实 Tool metadata，不信任外部 ToolCall 或 caller-supplied safety flag。
-* Protected Execution Boundary 已建立；approval、idempotency、safe Tool retry 和 workflow pause/resume 尚未实现。
+* Protected Execution Boundary 已建立；approval decision 与 durable HITL pause 已建立，但 approved Tool execution、idempotency 和完整 workflow continuation 尚未实现。
 * TASK-020：Approval 是独立于 TaskStatus 的 Domain Entity；一个 Task 概念上可关联多个 Approval。
 * 新 Approval 只能从 `PENDING` 创建；历史 Approval 通过 `restore(...)` 进行受控恢复。
 * TASK-021：Approval persistence 已建立；`Approval ORM` 不等于 `Approval Domain Entity`，历史实体通过 `Approval.restore(...)` 重新水合。
@@ -85,9 +83,12 @@ Review compatibility if the public error hierarchy is formalized later.
 * Decision API 不调用 AgentRuntime、LLM、ToolExecutor 或 ProtectedToolExecutionService；`APPROVED` / `REJECTED` 后 Task 仍为 `WAITING_APPROVAL`。
 * TASK-025：reject 通过 `ApprovalDecisionService → Approval.reject() + Task.mark_rejected() → ApprovalRejectionPersistence`，在一个短事务中原子写入 `REJECTED Approval + REJECTED Task`；approve 仍保持 `APPROVED + WAITING_APPROVAL`。
 * `REJECTED` 不等于 `FAILED`；decision paths 不执行 Tool。未来新增其它 WAITING_APPROVAL 出站路径时，必须重新评估跨实体并发边界。
-* Task lifecycle continuation、`WAITING_APPROVAL → RUNNING`、checkpoint、resume 和 approved Tool execution 尚未实现。
+* TASK-026：LangGraph durable workflow foundation 已建立；LangGraph 仅负责 orchestration foundation，AgentFlow 保留 LLMClient、LLM reliability、Tool/Registry/Executor/Policy、Domain、Services、Repositories、business persistence 和 FastAPI。
+* Business persistence 由 SQLAlchemy / Repository / Alembic 管理；workflow persistence 由 PostgreSQL-backed PostgresSaver 管理，LangGraph checkpoint tables 不由 AgentFlow Alembic 管理。
+* AgentFlow business state、LangGraph workflow state 和 external side effects 仍是三个独立关注面；当前没有跨 business/checkpoint persistence 的 transaction atomicity、reconciliation 或 exactly-once 保证。
+* Task lifecycle continuation、`WAITING_APPROVAL → RUNNING`、Approval-driven resume、checkpoint 与 approved Tool execution 尚未实现；TASK-027 仅记录为 Not Started。
 
-Resume Architecture Readiness = Ready；这表示可以开始 checkpoint/resume architecture design，不表示 resume、checkpoint 或 LangGraph 已实现或选定。
+Resume Architecture Readiness = Ready；这表示可以开始 checkpoint/resume architecture design，不表示 resume、checkpoint 或 LangGraph 已迁移或选定替代 AgentRuntime。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

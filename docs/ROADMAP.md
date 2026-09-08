@@ -52,9 +52,11 @@ This roadmap is directional. A phase is not considered complete merely because i
 * explicit workflow states
 * conditional transitions
 * workflow execution
-* LangGraph evaluation
+* LangGraph evaluation completed by TASK-026
+* incremental LangGraph adoption selected
+* AgentRuntime orchestration integration
 
-LangGraph is evaluated only after an actual workflow-orchestration requirement appears. It is not a Day 1 mandatory dependency.
+LangGraph evaluation was intentionally deferred until an actual workflow-orchestration requirement appeared. That evaluation completed in TASK-026, and incremental adoption was selected; LangGraph remains not a Day 1 mandatory dependency.
 
 中文释义：先用显式状态和转移表达真实需求，再评估框架是否减少复杂度。不能因为路线图提到 LangGraph，就提前把它加入初始 Runtime。
 

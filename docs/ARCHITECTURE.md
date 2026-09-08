@@ -164,3 +164,15 @@ Decision 不调用 Runtime/Tool。Approve 后 Task 仍为 WAITING_APPROVAL；TAS
 Task 仅允许 WAITING_APPROVAL → REJECTED，REJECTED 为 terminal 且无 result/error；人工拒绝不等同 FAILED。两次数据库条件写入分别要求 Approval PENDING 和 Task WAITING_APPROVAL，冲突或错误回滚整个 rejection transaction。提交结果不确定时只传播错误，不执行 fallback write。该短事务包含 context reads 和持久化，不跨 LLM/Runtime/Tool。
 
 Task 查询及 `GET /api/tasks?status=rejected` 支持新状态。Approval API DTO 不变。Approve 继续保持 WAITING_APPROVAL，不恢复执行。
+
+## Durable Workflow Foundation (TASK-026 / ADR-005)
+
+The isolated app.workflows package provides START -> durable_pause (interrupt) -> END. It does not replace AgentRuntime or APIs. State contains only task_id and optional resume_result strings, with no runtime objects or business lifecycle snapshots.
+
+AgentFlow Task.id -> task_id_to_thread_id -> LangGraph configurable.thread_id. LangGraph internal task IDs are distinct. The interrupt node has no pre-interrupt side effects and is replay-safe.
+
+open_checkpointer owns a synchronous official PostgresSaver connection. Run python -m app.workflows.setup explicitly from backend with DATABASE_URL for infrastructure initialization. Normal open/startup never calls setup. Checkpoint schema belongs to LangGraph; business tables remain owned by SQLAlchemy/Alembic.
+
+Restart tests close process A before process B creates a fresh graph/checkpointer and resumes the persisted thread with Command(resume), without initial input. Separate thread isolation and final state are verified.
+
+LangGraph owns orchestration/checkpoint foundation. AgentFlow retains Domain, Services, Repositories, Tool safety, LLM reliability and FastAPI. Business/checkpoint consistency is recognized and deferred to a separately designed integration task.

@@ -251,8 +251,20 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * decision paths do not execute Tool
 * Resume Architecture Readiness = Ready
 * 277 passed, 0 skipped, 1 warning
+* TASK-026 - LangGraph Durable Workflow Foundation
+* TASK-026 review result: PASS
+* Incremental LangGraph adoption established
+* ADR-005 recorded
+* minimal StateGraph and AgentGraphState established
+* AgentFlow Task.id → LangGraph configurable.thread_id contract established
+* PostgreSQL-backed PostgresSaver and explicit checkpoint schema setup established
+* durable interrupt and Command(resume=...) continuation established
+* cross-process checkpoint recovery with fresh Saver + fresh Graph verified
+* resume without re-submitting initial workflow input verified
+* thread isolation verified
+* 285 passed, 0 failed, 0 skipped, 0 warnings
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024 和 TASK-025 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025 和 TASK-026 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -269,8 +281,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-Resume / Checkpoint Architecture Evaluation
+TASK-027 - AgentRuntime → LangGraph Orchestration Integration
 
 Status: Not Started
 
-当前 durable pause、human decision 和 reject lifecycle 已稳定；下一阶段评估 checkpoint/resume architecture。当前尚未定义为具体 Task，暂不开始执行。
+当前 LangGraph durable workflow foundation 已建立；下一阶段可进入 AgentRuntime orchestration integration。当前暂不开始执行。
