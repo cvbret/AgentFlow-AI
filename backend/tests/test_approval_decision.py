@@ -14,6 +14,7 @@ from app.api.dependencies import get_db_session
 from app.approvals.models import Approval, ApprovalStatus
 from app.approvals.exceptions import ApprovalError
 from app.approvals.repository import ApprovalRepository
+from app.approvals.rejection_persistence import ApprovalRejectionPersistence
 from app.approvals.service import ApprovalDecisionService, ApprovalDecisionConflictError, ApprovalTaskContextError
 from app.db.models import ApprovalRecord, TaskRecord
 from app.main import app
@@ -85,7 +86,9 @@ def test_api_decision_and_all_terminal_conflicts(engine, client, decision):
         assert loaded.decided_at.isoformat().replace("+00:00", "Z") == body["decided_at"]
         for field in ("id", "task_id", "tool_call_id", "tool_name", "arguments", "created_at"):
             assert getattr(loaded, field) == getattr(approval, field)
-        assert TaskRepository(observer).get(task.id).model_dump() == task.model_dump()
+        loaded_task = TaskRepository(observer).get(task.id)
+        assert loaded_task.status is (TaskStatus.WAITING_APPROVAL if decision == "approve" else TaskStatus.REJECTED)
+        assert loaded_task.result is None and loaded_task.error is None
 
 
 def test_api_unknown_and_invalid_id(client):
@@ -118,7 +121,7 @@ def test_missing_task_context_rejected():
     approvals.get_by_id.return_value = approval
     tasks.get.return_value = None
     with pytest.raises(ApprovalTaskContextError):
-        ApprovalDecisionService(approvals, tasks).decide(approval.id, "reject")
+        ApprovalDecisionService(approvals, tasks, Mock(spec=ApprovalRejectionPersistence)).decide(approval.id, "reject")
     approvals.save_decision_if_pending.assert_not_called()
 
 
@@ -127,12 +130,18 @@ def test_real_concurrent_decisions_exactly_one_winner(engine, decisions):
     task, approval = seed(engine)
     barrier = Barrier(2)
     class ConcurrentRepository(ApprovalRepository):
-        def save_decision_if_pending(self, candidate):
-            barrier.wait(timeout=10)  # Both have loaded PENDING and built candidates.
-            return super().save_decision_if_pending(candidate)
+        def get_by_id(self, approval_id):
+            loaded = super().get_by_id(approval_id)
+            barrier.wait(timeout=10)
+            return loaded
+    class ConcurrentTasks(TaskRepository):
+        def get(self, task_id):
+            loaded = super().get(task_id)
+            barrier.wait(timeout=10)
+            return loaded
     def decide(decision):
         with Session(engine) as session:
-            service = ApprovalDecisionService(ConcurrentRepository(session), TaskRepository(session))
+            service = ApprovalDecisionService(ConcurrentRepository(session), ConcurrentTasks(session), ApprovalRejectionPersistence(session))
             try:
                 result = service.decide(approval.id, decision)
                 return ("accepted", result.status, result.decided_at)
@@ -148,7 +157,7 @@ def test_real_concurrent_decisions_exactly_one_winner(engine, decisions):
         loaded = ApprovalRepository(observer).get_by_id(approval.id)
         assert loaded.status is winner[1]
         assert loaded.decided_at == winner[2]
-        assert TaskRepository(observer).get(task.id).status is TaskStatus.WAITING_APPROVAL
+        assert TaskRepository(observer).get(task.id).status is (TaskStatus.WAITING_APPROVAL if winner[1] is ApprovalStatus.APPROVED else TaskStatus.REJECTED)
 
 
 def test_repository_rejects_pending_candidate(engine):
@@ -167,7 +176,7 @@ def test_decision_statement_failure_rolls_back_and_is_not_conflict(engine, clien
             FOR EACH ROW EXECUTE FUNCTION task024_fail_decision()"""))
     try:
         with Session(engine) as session:
-            service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session))
+            service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session))
             with pytest.raises(SQLAlchemyError, match="task024 persistence failure"):
                 service.decide(approval.id, "approve")
             assert not session.in_transaction()

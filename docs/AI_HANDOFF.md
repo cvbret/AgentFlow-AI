@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-024 - Approval Decision Integration Foundation`
+* **Task:** `TASK-025 - Approval Decision to Task Lifecycle Integration`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** Approval Decision API; `ApprovalDecisionService`; `PENDING → APPROVED / REJECTED`; atomic conditional decision persistence; concurrency-safe single-winner guarantee; Task eligibility requires `WAITING_APPROVAL`; Task remains `WAITING_APPROVAL`; approved decision does not execute Tool; Approval Lifecycle Integration Readiness = Ready; 258 passed, 0 skipped, 1 warning
+* **Summary:** `TaskStatus.REJECTED`; `WAITING_APPROVAL → REJECTED`; REJECTED kept distinct from FAILED; atomic Approval + Task rejection; approve remains `APPROVED + WAITING_APPROVAL`; cross-entity approve/reject concurrency protection; `status=rejected` filtering; no Tool execution; Resume Architecture Readiness = Ready; 277 passed, 0 skipped, 1 warning
 * **Git commit:** `Pending commit`
 
-TASK-024 已通过最终 Independent Review，最终 Review Result 为 `PASS WITH NOTES`；无 BLOCKER 或 IMPORTANT，当前尚未提交。
+TASK-025 已通过最终 Independent Review，最终 Review Result 为 `PASS WITH NOTES`；无 BLOCKER 或 IMPORTANT，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -41,13 +41,14 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: FAILED persistence 仍为 best-effort；数据库完全不可用时不能保证 FAILED durable 保存。commit acknowledgement uncertainty 尚未完整 reconciliation，但 conditional RUNNING-only update 不会覆盖已提交的 WAITING_APPROVAL。
 * Note: commit acknowledgement uncertainty 仍可能造成 API 返回错误而 decision 实际已提交；当前不做完整 reconciliation。
 * Note: 未来 WAITING lifecycle continuation 与 Approval decision 的并发协调需要重新评估；当前 Task eligibility 仅允许 `WAITING_APPROVAL`。
+* Note: 建议未来补充 Approval 已更新后 Task conditional zero-row 的正式回归；当前不阻塞 TASK-025。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `Approval Decision → Task Lifecycle Integration`
+* **Task:** `Resume / Checkpoint Architecture Evaluation`
 * **Status:** `Not Started`
 
-Approval decision 已建立，但尚未实现 decision 后的 Task lifecycle continuation。当前尚未定义为具体 Task，暂不开始执行。
+当前 durable pause、human decision 和 reject lifecycle 已稳定；下一阶段评估 checkpoint/resume architecture。当前尚未定义为具体 Task，暂不开始执行。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -82,7 +83,11 @@ Approval decision 已建立，但尚未实现 decision 后的 Task lifecycle con
 * 失败处理使用 conditional RUNNING → FAILED update；0 rows 不表示 waiting success confirmed，commit acknowledgement uncertainty 尚未完整 reconciliation。
 * TASK-024：`POST /api/approvals/{id}/approve|reject → ApprovalDecisionService → Approval Domain → conditional Approval persistence`；并发决策保证单一成功者，冲突返回 409。
 * Decision API 不调用 AgentRuntime、LLM、ToolExecutor 或 ProtectedToolExecutionService；`APPROVED` / `REJECTED` 后 Task 仍为 `WAITING_APPROVAL`。
-* Task lifecycle continuation、`WAITING_APPROVAL → RUNNING`、reject terminal Task behavior、checkpoint、resume 和 approved Tool execution 尚未实现。
+* TASK-025：reject 通过 `ApprovalDecisionService → Approval.reject() + Task.mark_rejected() → ApprovalRejectionPersistence`，在一个短事务中原子写入 `REJECTED Approval + REJECTED Task`；approve 仍保持 `APPROVED + WAITING_APPROVAL`。
+* `REJECTED` 不等于 `FAILED`；decision paths 不执行 Tool。未来新增其它 WAITING_APPROVAL 出站路径时，必须重新评估跨实体并发边界。
+* Task lifecycle continuation、`WAITING_APPROVAL → RUNNING`、checkpoint、resume 和 approved Tool execution 尚未实现。
+
+Resume Architecture Readiness = Ready；这表示可以开始 checkpoint/resume architecture design，不表示 resume、checkpoint 或 LangGraph 已实现或选定。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

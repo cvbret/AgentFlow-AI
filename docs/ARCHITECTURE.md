@@ -154,4 +154,13 @@ Any material architecture change must be recorded in `docs/DECISIONS.md` as a ne
 
 Service 与两个 Repository 使用请求级 Session。Service 读取关联 Task，仅允许 WAITING_APPROVAL 上的 PENDING Approval。数据库通过单条条件 UPDATE（PENDING、Task identity、关联 Task WAITING 条件）保护竞争，只写 status/decided_at；提交成功才返回 terminal DTO。重复或竞争失败返回 409，不存在 Approval 返回 404，无效 Task context 返回 409，数据库错误回滚并传播。
 
-Decision 不调用 Runtime/Tool，不改变 Task，Approval=APPROVED/REJECTED 后 Task 仍为 WAITING_APPROVAL。既有 standalone save 兼容保留，decision 路径必须使用条件写入。该能力不包含 resume、reconciliation 或完整 idempotency；commit acknowledgement 丢失仍可返回错误，不自动重试或推断成功。
+Decision 不调用 Runtime/Tool。Approve 后 Task 仍为 WAITING_APPROVAL；TASK-025 reject 则在一个短事务中同时将 Approval 与 Task 变为 REJECTED（见 ADR-004）。既有 standalone save 兼容保留，decision 路径必须使用条件写入。该能力不包含 resume、reconciliation 或完整 idempotency；commit acknowledgement 丢失仍可返回错误，不自动重试或推断成功。
+
+
+## Human Rejection Lifecycle (TASK-025)
+
+`ApprovalDecisionService → Approval.reject() + Task.mark_rejected() → ApprovalRejectionPersistence → stage_decision_if_pending + stage_rejected_if_waiting → one commit`。
+
+Task 仅允许 WAITING_APPROVAL → REJECTED，REJECTED 为 terminal 且无 result/error；人工拒绝不等同 FAILED。两次数据库条件写入分别要求 Approval PENDING 和 Task WAITING_APPROVAL，冲突或错误回滚整个 rejection transaction。提交结果不确定时只传播错误，不执行 fallback write。该短事务包含 context reads 和持久化，不跨 LLM/Runtime/Tool。
+
+Task 查询及 `GET /api/tasks?status=rejected` 支持新状态。Approval API DTO 不变。Approve 继续保持 WAITING_APPROVAL，不恢复执行。

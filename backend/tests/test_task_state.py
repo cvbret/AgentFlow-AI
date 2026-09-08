@@ -319,3 +319,45 @@ def test_waiting_approval_rejects_backward_timestamp() -> None:
     with pytest.raises(TaskError):
         task.mark_waiting_approval(now=task.updated_at - timedelta(seconds=1))
     assert task.status is TaskStatus.RUNNING
+
+
+@pytest.mark.parametrize("source", list(TaskStatus))
+def test_rejected_transition_only_from_waiting(source):
+    task = Task(input="reject domain")
+    if source is not TaskStatus.PENDING:
+        task.start()
+    if source in (TaskStatus.WAITING_APPROVAL, TaskStatus.REJECTED):
+        task.mark_waiting_approval()
+    if source is TaskStatus.SUCCEEDED:
+        task.succeed("done")
+    elif source is TaskStatus.FAILED:
+        task.fail("failure")
+    elif source is TaskStatus.REJECTED:
+        task.mark_rejected()
+    if source is TaskStatus.WAITING_APPROVAL:
+        task.mark_rejected()
+        assert task.status is TaskStatus.REJECTED
+        assert task.result is None and task.error is None
+    else:
+        with pytest.raises(InvalidTaskStateTransitionError):
+            task.mark_rejected()
+
+
+@pytest.mark.parametrize("method,args", [("start", ()), ("succeed", ("done",)), ("fail", ("failure",)), ("mark_waiting_approval", ()), ("mark_rejected", ())])
+def test_rejected_is_terminal(method, args):
+    task = Task(input="terminal")
+    task.start()
+    task.mark_waiting_approval()
+    task.mark_rejected()
+    with pytest.raises(InvalidTaskStateTransitionError):
+        getattr(task, method)(*args)
+
+
+@pytest.mark.parametrize("field", ["result", "error"])
+def test_rejected_restore_rejects_result_or_error(field):
+    task = Task(input="invariants")
+    values = task.model_dump()
+    values.update(status=TaskStatus.REJECTED)
+    values[field] = "invalid"
+    with pytest.raises(TaskError):
+        Task.restore(**values)

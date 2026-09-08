@@ -137,6 +137,10 @@ def _task_with_status(index: int, created_at: datetime, status: TaskStatus) -> T
     elif status is TaskStatus.WAITING_APPROVAL:
         task.start(now=created_at)
         task.mark_waiting_approval(now=created_at)
+    elif status is TaskStatus.REJECTED:
+        task.start(now=created_at)
+        task.mark_waiting_approval(now=created_at)
+        task.mark_rejected(now=created_at)
     elif status is TaskStatus.SUCCEEDED:
         task.start(now=created_at)
         task.succeed(f"result-{index}", now=created_at)
@@ -199,6 +203,7 @@ def test_list_without_status_returns_tasks_in_all_states(session: Session) -> No
         _task_with_status(13, base, TaskStatus.SUCCEEDED),
         _task_with_status(14, base, TaskStatus.FAILED),
         _task_with_status(15, base, TaskStatus.WAITING_APPROVAL),
+        _task_with_status(16, base, TaskStatus.REJECTED),
     ]
     for task in tasks:
         repository.save(task)

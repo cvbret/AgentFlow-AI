@@ -37,27 +37,30 @@ class ApprovalRepository:
             raise
         return approval
 
-    def save_decision_if_pending(self, approval: Approval) -> bool:
-        """Commit a valid terminal candidate only if its request is still eligible."""
+    def stage_decision_if_pending(self, approval: Approval) -> bool:
+        """Stage conditional decision; caller owns transaction completion."""
         candidate = Approval.restore(**approval.model_dump())
         if candidate.status not in (ApprovalStatus.APPROVED, ApprovalStatus.REJECTED):
             raise ApprovalError("Decision persistence requires a terminal Approval")
-        try:
-            result = self._session.execute(
-                update(ApprovalRecord)
-                .where(
-                    ApprovalRecord.id == candidate.id,
-                    ApprovalRecord.task_id == candidate.task_id,
-                    ApprovalRecord.status == ApprovalStatus.PENDING.value,
-                    exists().where(
-                        TaskRecord.id == ApprovalRecord.task_id,
-                        TaskRecord.status == TaskStatus.WAITING_APPROVAL.value,
-                    ),
-                )
-                .values(status=candidate.status.value, decided_at=candidate.decided_at)
-                .execution_options(synchronize_session=False)
+        result = self._session.execute(
+            update(ApprovalRecord)
+            .where(
+                ApprovalRecord.id == candidate.id,
+                ApprovalRecord.task_id == candidate.task_id,
+                ApprovalRecord.status == ApprovalStatus.PENDING.value,
+                exists().where(
+                    TaskRecord.id == ApprovalRecord.task_id,
+                    TaskRecord.status == TaskStatus.WAITING_APPROVAL.value,
+                ),
             )
-            accepted = result.rowcount == 1
+            .values(status=candidate.status.value, decided_at=candidate.decided_at)
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount == 1
+
+    def save_decision_if_pending(self, approval: Approval) -> bool:
+        try:
+            accepted = self.stage_decision_if_pending(approval)
             self._session.commit()
             self._session.expire_all()
             return accepted

@@ -64,6 +64,19 @@ class TaskRepository:
             self._session.rollback()
             raise
 
+    def stage_rejected_if_waiting(self, task: Task) -> bool:
+        """Conditional rejection write; coordinator owns commit and rollback."""
+        candidate = Task.restore(**task.model_dump())
+        if candidate.status is not TaskStatus.REJECTED:
+            raise TaskError("Rejection persistence requires a REJECTED Task")
+        result = self._session.execute(
+            update(TaskRecord)
+            .where(TaskRecord.id == candidate.id, TaskRecord.status == TaskStatus.WAITING_APPROVAL.value)
+            .values(status=candidate.status.value, result=None, error=None, updated_at=candidate.updated_at)
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount == 1
+
     def get(self, task_id: UUID) -> Task | None:
         record = self._session.get(TaskRecord, task_id)
         if record is None:

@@ -33,6 +33,7 @@ class TaskStatus(StrEnum):
     WAITING_APPROVAL = "WAITING_APPROVAL"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
+    REJECTED = "REJECTED"
 
 
 class Task(BaseModel):
@@ -59,11 +60,11 @@ class Task(BaseModel):
         if not restoring and self.status is not TaskStatus.PENDING:
             raise ValueError("new Tasks must start in PENDING state")
         if self.status in (
-            TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL
+            TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL, TaskStatus.REJECTED
         ):
             if self.result is not None or self.error is not None:
                 raise ValueError(
-                    "PENDING, RUNNING and WAITING_APPROVAL Tasks must not have result or error"
+                    "PENDING, RUNNING, WAITING_APPROVAL and REJECTED Tasks must not have result or error"
                 )
         elif self.status is TaskStatus.SUCCEEDED:
             if self.error is not None:
@@ -128,6 +129,12 @@ class Task(BaseModel):
         self._require_state(TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL)
         timestamp = self._transition_timestamp(now)
         object.__setattr__(self, "status", TaskStatus.WAITING_APPROVAL)
+        object.__setattr__(self, "updated_at", timestamp)
+
+    def mark_rejected(self, *, now: datetime | None = None) -> None:
+        self._require_state(TaskStatus.WAITING_APPROVAL, TaskStatus.REJECTED)
+        timestamp = self._transition_timestamp(now)
+        object.__setattr__(self, "status", TaskStatus.REJECTED)
         object.__setattr__(self, "updated_at", timestamp)
 
     def succeed(self, result: str, *, now: datetime | None = None) -> None:

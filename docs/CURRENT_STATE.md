@@ -239,8 +239,20 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * approved decision does not execute Tool
 * Approval Lifecycle Integration Readiness = Ready
 * 258 passed, 0 skipped, 1 warning
+* TASK-025 - Approval Decision to Task Lifecycle Integration
+* TASK-025 review result: PASS WITH NOTES
+* TaskStatus.REJECTED established
+* WAITING_APPROVAL → REJECTED transition established
+* REJECTED kept distinct from FAILED
+* atomic Approval rejection + Task rejection established
+* approve remains APPROVED + WAITING_APPROVAL
+* approve/reject cross-entity concurrency protection verified
+* status=rejected filtering established
+* decision paths do not execute Tool
+* Resume Architecture Readiness = Ready
+* 277 passed, 0 skipped, 1 warning
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023 和 TASK-024 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024 和 TASK-025 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -257,8 +269,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-Approval Decision → Task Lifecycle Integration
+Resume / Checkpoint Architecture Evaluation
 
 Status: Not Started
 
-Approval decision 已建立，但尚未实现 decision 后的 Task lifecycle continuation。当前尚未定义为具体 Task，暂不开始执行。
+当前 durable pause、human decision 和 reject lifecycle 已稳定；下一阶段评估 checkpoint/resume architecture。当前尚未定义为具体 Task，暂不开始执行。

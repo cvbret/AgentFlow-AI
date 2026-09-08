@@ -96,3 +96,25 @@ TaskExecutionService builds a waiting candidate through Task.restore and the dom
 ### Revisit Trigger
 
 Revisit recovery for unknown transaction outcomes and checkpoint storage when resume or reconciliation is explicitly scoped.
+
+
+## ADR-004 - Atomic human rejection of Approval and Task
+
+**Status:** Accepted; final Independent Review validated.
+
+### Context
+
+TASK-024 decisions changed only Approval. TASK-025 requires human rejection to terminate the waiting Task distinctly from runtime failure, without a split-commit window.
+
+### Decision
+
+Task.mark_rejected permits only WAITING_APPROVAL → REJECTED with no result/error. ApprovalDecisionService calls the existing Approval.reject and Task domain transition, then ApprovalRejectionPersistence coordinates one Session and one commit. Approval staging conditionally updates PENDING with waiting Task context; Task staging independently requires durable WAITING_APPROVAL. A zero-row result rolls back both writes and maps to conflict.
+
+The coordinator joins the short transaction opened by the service's context reads. It performs no external or Agent/LLM work. Approve retains its existing conditional commit and leaves the Task waiting.
+
+### Consequences
+
+- Approval and Task rejection commit together or neither does.
+- Statement/commit failures rollback and propagate, without failure-state fallback. A lost commit acknowledgement may report an error after both rejections committed; no destructive rewrite occurs.
+- Existing standalone repository methods remain compatible; callers needing lifecycle rejection must use the application Service/coordinator.
+- No resume, checkpoint or approved Tool execution is provided.
