@@ -1,5 +1,8 @@
+from collections.abc import Callable
 from typing import Literal
 from uuid import UUID
+
+from app.approvals.continuation_persistence import ApprovalContinuationPersistence
 
 from app.approvals.models import Approval, ApprovalStatus
 from app.approvals.repository import ApprovalRepository
@@ -21,12 +24,15 @@ class ApprovalTaskContextError(RuntimeError):
 
 
 class ApprovalDecisionService:
-    """Decide a pending request without executing or resuming its Task."""
+    """Decide atomically, then dispatch a successful continuation after commit."""
 
-    def __init__(self, approvals: ApprovalRepository, tasks: TaskRepository, rejection: ApprovalRejectionPersistence) -> None:
+    def __init__(self, approvals: ApprovalRepository, tasks: TaskRepository, rejection: ApprovalRejectionPersistence, continuation: ApprovalContinuationPersistence,
+                 resume: Callable[[UUID, UUID], object] | None = None) -> None:
         self._approvals = approvals
         self._tasks = tasks
         self._rejection = rejection
+        self._continuation = continuation
+        self._resume = resume
 
     def decide(self, approval_id: UUID, decision: Literal["approve", "reject"]) -> Approval:
         if decision not in ("approve", "reject"):
@@ -41,11 +47,14 @@ class ApprovalDecisionService:
             raise ApprovalTaskContextError("Approval Task is not waiting for approval.")
         if decision == "approve":
             approval.approve()
-            accepted = self._approvals.save_decision_if_pending(approval)
+            task.resume_approved()
+            accepted = self._continuation.save(approval, task)
         else:
             approval.reject()
             task.mark_rejected()
             accepted = self._rejection.save(approval, task)
         if not accepted:
             raise ApprovalDecisionConflictError("Approval decision was not accepted.")
+        if decision == "approve" and self._resume is not None:
+            self._resume(task.id, approval.id)
         return approval

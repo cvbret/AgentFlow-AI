@@ -154,7 +154,7 @@ Any material architecture change must be recorded in `docs/DECISIONS.md` as a ne
 
 Service 与两个 Repository 使用请求级 Session。Service 读取关联 Task，仅允许 WAITING_APPROVAL 上的 PENDING Approval。数据库通过单条条件 UPDATE（PENDING、Task identity、关联 Task WAITING 条件）保护竞争，只写 status/decided_at；提交成功才返回 terminal DTO。重复或竞争失败返回 409，不存在 Approval 返回 404，无效 Task context 返回 409，数据库错误回滚并传播。
 
-Decision 不调用 Runtime/Tool。Approve 后 Task 仍为 WAITING_APPROVAL；TASK-025 reject 则在一个短事务中同时将 Approval 与 Task 变为 REJECTED（见 ADR-004）。既有 standalone save 兼容保留，decision 路径必须使用条件写入。该能力不包含 resume、reconciliation 或完整 idempotency；commit acknowledgement 丢失仍可返回错误，不自动重试或推断成功。
+TASK-024/025 阶段 Decision 不调用 Runtime/Tool，approve 后 Task 保持 WAITING_APPROVAL（TASK-028 已升级，见下文）；TASK-025 reject 则在一个短事务中同时将 Approval 与 Task 变为 REJECTED（见 ADR-004）。既有 standalone save 兼容保留，decision 路径必须使用条件写入。该能力不包含 resume、reconciliation 或完整 idempotency；commit acknowledgement 丢失仍可返回错误，不自动重试或推断成功。
 
 
 ## Human Rejection Lifecycle (TASK-025)
@@ -163,11 +163,11 @@ Decision 不调用 Runtime/Tool。Approve 后 Task 仍为 WAITING_APPROVAL；TAS
 
 Task 仅允许 WAITING_APPROVAL → REJECTED，REJECTED 为 terminal 且无 result/error；人工拒绝不等同 FAILED。两次数据库条件写入分别要求 Approval PENDING 和 Task WAITING_APPROVAL，冲突或错误回滚整个 rejection transaction。提交结果不确定时只传播错误，不执行 fallback write。该短事务包含 context reads 和持久化，不跨 LLM/Runtime/Tool。
 
-Task 查询及 `GET /api/tasks?status=rejected` 支持新状态。Approval API DTO 不变。Approve 继续保持 WAITING_APPROVAL，不恢复执行。
+Task 查询及 `GET /api/tasks?status=rejected` 支持新状态。Approval API DTO 不变。TASK-028 将 approve 升级为原子 continuation claim，reject 行为不变。
 
 ## Durable Workflow Foundation (TASK-026 / ADR-005)
 
-The isolated foundation graph provides START -> durable_pause (interrupt) -> END. Its input remains task_id with optional resume_result; it is separate from the Agent execution graph introduced in TASK-027. The shared AgentGraphState additionally permits Agent loop fields, with no runtime objects or business lifecycle snapshots.
+The isolated foundation graph provides START -> durable_pause (interrupt) -> END. Its input remains task_id with optional resume_result; it is separate from the Agent execution graph introduced in TASK-027. The shared AgentGraphState additionally permits Agent loop fields and a serialized pending request for correlation; runtime objects are excluded. Approval decisions remain authoritative only in business persistence.
 
 AgentFlow Task.id -> task_id_to_thread_id -> LangGraph configurable.thread_id. LangGraph internal task IDs are distinct. The interrupt node has no pre-interrupt side effects and is replay-safe.
 
@@ -175,34 +175,89 @@ open_checkpointer owns a synchronous official PostgresSaver connection. Run pyth
 
 Restart tests close process A before process B creates a fresh graph/checkpointer and resumes the persisted thread with Command(resume), without initial input. Separate thread isolation and final state are verified.
 
-LangGraph owns orchestration/checkpoint foundation. AgentFlow retains Domain, Services, Repositories, Tool safety, LLM reliability and FastAPI. Business/checkpoint consistency is recognized and deferred to a separately designed integration task.
+LangGraph owns orchestration/checkpoint foundation. AgentFlow retains Domain, Services, Repositories, Tool safety, LLM reliability and FastAPI. TASK-028 establishes checkpoint-first ordering; cross-store atomicity and reconciliation remain deferred.
 
 
-## Agent Runtime Orchestration (TASK-027 / ADR-005)
+## Agent Runtime Orchestration (TASK-027, extended by TASK-028)
 
-AgentRuntime remains the application-facing façade: run(initial_messages, *, task_id)
-returns AgentResult(content). Each run builds and invokes a compiled StateGraph:
-START -> llm -> pure route -> tool / END; tool -> llm.
-Per-run construction preserves the existing tool-definition snapshot and
-ProtectedToolExecutionService lifetime. API and TaskExecutionService remain unchanged.
+AgentRuntime remains the application-facing facade: run(initial_messages, *, task_id)
+and resume(*, task_id, approval_id) return AgentResult(content), or expose
+ApprovalRequired after a durable interrupt. API routes do not invoke Graph APIs.
+The application runtime factory injects a fresh PostgresSaver context per invocation
+and an Approval loader using a separate short business Session. Infrastructure must
+run `python -m app.workflows.setup` before serving Agent requests; startup does not
+silently create checkpoint tables. Runtime.close still owns LLMClient.close.
 
-AgentGraphState carries task_id (string), messages (AgentFlow ChatMessage list),
-step_count (LLM rounds), and final_answer (original non-empty content). These loop
-fields are optional for compatibility with the separate foundation graph;
-resume_result remains foundation-only. Pending ToolCalls are already represented
-by the last assistant message, so no duplicate pending-call state is introduced.
-Dependencies live in node closures. No LangChain message conversion is required.
+Standalone runtime construction without a saver retains the earlier non-durable
+ApprovalRequired behavior for compatibility and unit use; it cannot resume. The
+production dependency factory always wires PostgreSQL checkpoints. No in-memory
+saver is used for the acceptance path.
 
-max_steps still bounds LLM calls. A final answer on the last allowed call succeeds;
-all ToolCalls returned on that call execute sequentially before the next LLM node
-raises AgentMaxStepsExceededError without another provider call. Tool failures and
-ApprovalRequired therefore retain priority over exhaustion. The invocation uses
-recursion_limit = 2 * max_steps + 2 solely as an additional framework guard.
+```text
+START -> llm -> route -> END / tool
+                              tool -> llm (all calls complete)
+                              tool -> approval_pause -> interrupt
+                                          resume -> tool (saved cursor)
+```
 
-LLMClient retains provider parsing, retries, backoff and error classification.
-ProtectedToolExecutionService and ToolExecutor retain all safety and execution
-policy. Tool results return to the next LLM call in response order; exceptions
-propagate unchanged and stop remaining tools. ApprovalRequired carries an
-unpersisted request to the existing application persistence boundary, not a
-LangGraph interrupt. There is no Agent checkpointer, resume, approved execution,
-business/checkpoint dual write or lifecycle change in TASK-027.
+The tool node executes ordered calls through ProtectedToolExecutionService.
+On ApprovalRequired it RETURNS completed messages, the current cursor and a JSON
+snapshot of the same pending Approval. That node completes before approval_pause
+runs. The pause node has no pre-interrupt business side effects and validates only
+correlation on replay. It does not decide an Approval or execute a Tool.
+
+AgentGraphState uses JSON-compatible message/ToolCall snapshots, task_id,
+step_count, max_steps, final_answer, tool_calls, tool_cursor, pending_approval and
+resume_approval_id. Optional resume_result remains foundation-only. ChatMessage
+and ToolCall are reconstructed at the LLM/Tool boundary; no LangChain messages
+are introduced. Pending Approval data preserves identity/context for first business
+persistence and is NEVER decision authority. No Session, Tool or service is state.
+
+For safe A / protected B / safe C, the checkpoint records A's result and the cursor
+at B. Successful resume executes B then C; A is not replayed. A later protected
+call returns a new pending Approval and enters WAITING_APPROVAL again.
+
+max_steps still bounds LLM calls, including the last tool-producing round. Both
+step_count and the original budget survive resume, even if a fresh runtime has a
+different default. Last-round tools execute before exhaustion; a final answer on
+the boundary succeeds. recursion_limit = 2 * persisted max_steps + 4 is an extra
+framework guard per invocation. LLMClient retains all provider/reliability logic;
+Tool.execute retains input validation and ToolResult/error handling.
+
+## Approved Continuation (TASK-028 / ADR-006)
+
+1. Graph invoke completes its durable checkpoint/interrupt before Runtime exposes
+   ApprovalRequired with the original Approval ID and ToolCall context.
+2. Existing HITLPausePersistence atomically inserts PENDING Approval and writes
+   WAITING_APPROVAL Task. A failed business write cannot execute the protected
+   Tool; an orphan checkpoint may remain. Checkpoint failure does not expose a
+   business pause.
+3. ApprovalDecisionService calls Approval.approve and Task.resume_approved, then
+   ApprovalContinuationPersistence conditionally writes PENDING -> APPROVED and
+   WAITING_APPROVAL -> RUNNING in one short PostgreSQL transaction. Both decision
+   paths lock/update Approval before Task. A losing conditional update rolls back
+   both writes. Only the winner dispatches continuation, after commit.
+4. TaskResumeService ends its Task read transaction before invoking Runtime.resume.
+   It reuses TaskExecutionService's running-task completion/failure/pause handling:
+   SUCCEEDED, conditional FAILED, or a new WAITING_APPROVAL. No transaction spans
+   Graph execution, LLM or Tool side effects.
+5. Runtime validates durable thread/Approval correlation and persisted approval
+   before Command(resume). ApprovedToolExecutionService rereads business Approval
+   and requires APPROVED plus exact approval ID, task ID, tool_call_id, tool name
+   and JSON arguments before Registry resolution and Tool.execute. Payloads are
+   correlation only; no approved boolean, force flag or generic policy bypass.
+
+Approval routes and successful response DTOs are unchanged. Approve dispatches
+synchronous continuation via the application service; query Task for its resulting
+state. Continuation failures propagate through existing error handling after the
+committed decision, with best-effort FAILED persistence. Retrying the decision
+returns conflict and does not dispatch another resume. Reject never resumes.
+
+There is no crash-safe exactly-once guarantee. A successful external Tool effect
+followed by a crash before checkpoint/completion persistence can replay during
+future recovery. A committed RUNNING claim followed by dispatch/process failure
+can leave stale RUNNING state. Orphan checkpoints, commit acknowledgement
+uncertainty and cross-store reconciliation are not repaired in this task.
+TASK-029 owns ledger/idempotency/duplicate prevention; later recovery and
+reconciliation work (TASK-030 scope to be defined) remains separate. No automatic
+recovery, queue, worker, parallel approvals or distributed execution is added.

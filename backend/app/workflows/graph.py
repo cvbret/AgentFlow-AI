@@ -5,15 +5,18 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
-from app.llm.schemas import ChatMessage
-
 
 class AgentGraphState(TypedDict):
     task_id: str  # AgentFlow Task.id; not LangGraph's internal task identifier.
     resume_result: NotRequired[str]
-    messages: NotRequired[list[ChatMessage]]
+    messages: NotRequired[list[dict]]
     step_count: NotRequired[int]
+    max_steps: NotRequired[int]
     final_answer: NotRequired[str]
+    tool_calls: NotRequired[list[dict]]
+    tool_cursor: NotRequired[int]
+    pending_approval: NotRequired[dict | None]
+    resume_approval_id: NotRequired[str | None]
 
 
 def task_id_to_thread_id(task_id: UUID) -> str:

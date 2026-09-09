@@ -6,6 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import Session
 
 from test_approval_decision import engine, client, seed
+from app.approvals.continuation_persistence import ApprovalContinuationPersistence
 from app.approvals.repository import ApprovalRepository
 from app.approvals.service import ApprovalDecisionService
 from app.approvals.rejection_persistence import ApprovalRejectionPersistence
@@ -33,7 +34,7 @@ def test_atomic_rejection_one_commit_visibility_and_filter(engine, client):
             assert current.execute(text("SELECT status FROM tasks WHERE id=:id"), {"id": task.id}).scalar_one() == "REJECTED"
             assert current.execute(text("SELECT status FROM approvals WHERE id=:id"), {"id": approval.id}).scalar_one() == "REJECTED"
         event.listen(session, "before_commit", before_commit)
-        service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session))
+        service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session), ApprovalContinuationPersistence(session))
         with patch.object(Tool, "execute") as execute, patch.object(AgentRuntime, "run") as run:
             service.decide(approval.id, "reject")
             execute.assert_not_called()
@@ -60,7 +61,7 @@ def test_reject_postgresql_failure_rolls_back_both(engine, client, failure):
         connection.execute(text(ddl))
     try:
         with Session(engine) as session, patch.object(Tool, "execute") as execute:
-            service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session))
+            service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session), ApprovalContinuationPersistence(session))
             with pytest.raises(SQLAlchemyError, match="task025 failure"):
                 service.decide(approval.id, "reject")
             assert not session.in_transaction()
@@ -82,7 +83,7 @@ def test_reject_real_commit_then_ack_loss_no_fallback(engine):
         def lose_ack():
             commit()
             raise error
-        service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session))
+        service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session), ApprovalContinuationPersistence(session))
         with patch.object(session, "commit", side_effect=lose_ack) as commit_call, patch.object(Tool, "execute") as execute:
             with pytest.raises(OperationalError) as raised:
                 service.decide(approval.id, "reject")

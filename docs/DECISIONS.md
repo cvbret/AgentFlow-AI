@@ -145,3 +145,45 @@ Checkpoint setup is explicit deployment initialization through python -m app.wor
 ### Revisit Trigger
 
 Before wiring business actions into the graph, design replay safety, resume authorization and checkpoint/business consistency explicitly.
+
+## ADR-006 - Checkpoint-first HITL pause and atomic continuation claim
+
+**Status:** Accepted; final Independent Review validated.
+
+### Context
+
+ADR-005 separated business persistence from workflow checkpoints. Real Agent
+resume now needs a replay-safe pause, durable correlation and one winning human
+decision without a transaction spanning external Tool execution.
+
+### Decision
+
+- Complete the tool-processing node with serialized continuation/cursor before
+  entering a separate side-effect-free interrupt node.
+- Establish the PostgreSQL checkpoint before exposing ApprovalRequired and writing
+  the business PENDING Approval + WAITING_APPROVAL Task transaction.
+- Approve atomically conditionally writes APPROVED Approval + RUNNING Task in a
+  short transaction, using Approval-then-Task order shared with rejection.
+  Dispatch synchronous TaskResumeService only after a successful commit.
+- Persisted Approval is the authorization source of truth. Validate full pending
+  ToolCall context at the approved execution boundary; resume payload is only
+  correlation. Keep the existing Tool validation and error contracts.
+
+### Consequences
+
+Normal successful continuation does not replay tools preceding the saved cursor.
+Competing decision requests dispatch at most one continuation. These properties
+are not crash-safe exactly-once: external effect success before durable progress
+can replay in later recovery. Checkpoint-first can leave orphan checkpoints;
+claim-first can leave stale RUNNING claims after crashes or lost acknowledgement.
+No distributed transaction, compensation, auto retry, cleanup or reconciliation
+is added. Ledger/idempotency belong to TASK-029; recovery/reconciliation requires
+separate subsequent design. Successful Approval API DTO shape is preserved;
+continuation errors can be returned after the approval decision has committed.
+
+### Revisit Trigger
+
+Before adding automatic recovery, retries, workers or parallel approvals, design
+execution identity/ledger, duplicate prevention and business/checkpoint
+reconciliation explicitly. Do not infer execution permission from checkpoint
+Approval snapshots or resume booleans.

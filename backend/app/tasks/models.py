@@ -131,6 +131,12 @@ class Task(BaseModel):
         object.__setattr__(self, "status", TaskStatus.WAITING_APPROVAL)
         object.__setattr__(self, "updated_at", timestamp)
 
+    def resume_approved(self, *, now: datetime | None = None) -> None:
+        self._require_state(TaskStatus.WAITING_APPROVAL, TaskStatus.RUNNING)
+        timestamp = self._transition_timestamp(now)
+        object.__setattr__(self, "status", TaskStatus.RUNNING)
+        object.__setattr__(self, "updated_at", timestamp)
+
     def mark_rejected(self, *, now: datetime | None = None) -> None:
         self._require_state(TaskStatus.WAITING_APPROVAL, TaskStatus.REJECTED)
         timestamp = self._transition_timestamp(now)

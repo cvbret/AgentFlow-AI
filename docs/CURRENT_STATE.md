@@ -274,8 +274,22 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * ApprovalRequired propagation preserved
 * real Agent PostgreSQL checkpoint integration not yet established
 * 293 passed, 0 failed, 0 skipped, 0 warnings
+* TASK-028 - Approved Tool Resume Integration
+* TASK-028 review result: PASS
+* real Agent Graph uses PostgreSQL-backed durable checkpoints
+* checkpoint-first protected Tool pause through a separate replay-safe interrupt node established
+* Approval PENDING + Task WAITING_APPROVAL → Approval APPROVED + Task RUNNING atomic continuation claim established
+* TaskResumeService established
+* fresh Runtime / Graph / Saver resume established
+* persisted Approval is the authorization Source of Truth
+* approved protected Tool continuation established
+* Tool cursor prevents replay of completed ToolCalls
+* multiple sequential Approvals supported
+* normal approval concurrency remains single-winner
+* no crash-safe exactly-once guarantee established
+* 318 passed, 0 failed, 0 skipped, 0 warnings
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026 和 TASK-027 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027 和 TASK-028 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -292,8 +306,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-028 - Approved Tool Resume Integration
+TASK-029 - Protected Tool Idempotency / Execution Ledger
 
 Status: Not Started
 
-当前 AgentRuntime orchestration 已迁移至 LangGraph StateGraph；下一阶段进入 Approval / Protected Tool Resume integration。当前不开始执行 TASK-028。
+当前已建立 durable protected Tool pause/resume；下一阶段进入 Protected Tool Idempotency / Execution Ledger。当前不开始执行 TASK-029。

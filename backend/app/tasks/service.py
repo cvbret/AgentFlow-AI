@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.agents.runtime import AgentMaxStepsExceededError, AgentRuntime
+from app.agents.runtime import AgentMaxStepsExceededError, AgentResult, AgentRuntime
 from app.tasks.pause_persistence import HITLPausePersistence
 from app.llm.client import (
     ConfigurationError,
@@ -51,12 +51,13 @@ class TaskExecutionService:
         task.start()
         self._repository.save(task)
 
+        return self.continue_running(task, lambda: self._runtime_provider().run(
+            [ChatMessage(role="user", content=task_input)], task_id=task.id))
+
+    def continue_running(self, task: Task, invoke: Callable[[], AgentResult]) -> Task:
         try:
             try:
-                result = self._runtime_provider().run(
-                    [ChatMessage(role="user", content=task_input)],
-                    task_id=task.id,
-                )
+                result = invoke()
             except ApprovalRequired as signal:
                 waiting_task = Task.restore(**task.model_dump())
                 waiting_task.mark_waiting_approval()

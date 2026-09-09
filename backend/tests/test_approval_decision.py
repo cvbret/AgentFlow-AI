@@ -10,9 +10,11 @@ from sqlalchemy import create_engine, delete, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_db_session
+from app.api.dependencies import get_db_session, get_agent_runtime_provider
+from app.agents.runtime import AgentResult
 from app.approvals.models import Approval, ApprovalStatus
 from app.approvals.exceptions import ApprovalError
+from app.approvals.continuation_persistence import ApprovalContinuationPersistence
 from app.approvals.repository import ApprovalRepository
 from app.approvals.rejection_persistence import ApprovalRejectionPersistence
 from app.approvals.service import ApprovalDecisionService, ApprovalDecisionConflictError, ApprovalTaskContextError
@@ -57,6 +59,9 @@ def client(engine):
         with Session(engine) as current:
             yield current
     app.dependency_overrides[get_db_session] = session
+    runtime = Mock(spec=AgentRuntime)
+    runtime.resume.return_value = AgentResult(content="continued")
+    app.dependency_overrides[get_agent_runtime_provider] = lambda: lambda: runtime
     try:
         with TestClient(app, raise_server_exceptions=False) as client:
             yield client
@@ -87,8 +92,9 @@ def test_api_decision_and_all_terminal_conflicts(engine, client, decision):
         for field in ("id", "task_id", "tool_call_id", "tool_name", "arguments", "created_at"):
             assert getattr(loaded, field) == getattr(approval, field)
         loaded_task = TaskRepository(observer).get(task.id)
-        assert loaded_task.status is (TaskStatus.WAITING_APPROVAL if decision == "approve" else TaskStatus.REJECTED)
-        assert loaded_task.result is None and loaded_task.error is None
+        assert loaded_task.status is (TaskStatus.SUCCEEDED if decision == "approve" else TaskStatus.REJECTED)
+        assert loaded_task.result == ("continued" if decision == "approve" else None)
+        assert loaded_task.error is None
 
 
 def test_api_unknown_and_invalid_id(client):
@@ -121,7 +127,7 @@ def test_missing_task_context_rejected():
     approvals.get_by_id.return_value = approval
     tasks.get.return_value = None
     with pytest.raises(ApprovalTaskContextError):
-        ApprovalDecisionService(approvals, tasks, Mock(spec=ApprovalRejectionPersistence)).decide(approval.id, "reject")
+        ApprovalDecisionService(approvals, tasks, Mock(spec=ApprovalRejectionPersistence), Mock(spec=ApprovalContinuationPersistence)).decide(approval.id, "reject")
     approvals.save_decision_if_pending.assert_not_called()
 
 
@@ -141,7 +147,7 @@ def test_real_concurrent_decisions_exactly_one_winner(engine, decisions):
             return loaded
     def decide(decision):
         with Session(engine) as session:
-            service = ApprovalDecisionService(ConcurrentRepository(session), ConcurrentTasks(session), ApprovalRejectionPersistence(session))
+            service = ApprovalDecisionService(ConcurrentRepository(session), ConcurrentTasks(session), ApprovalRejectionPersistence(session), ApprovalContinuationPersistence(session))
             try:
                 result = service.decide(approval.id, decision)
                 return ("accepted", result.status, result.decided_at)
@@ -157,7 +163,7 @@ def test_real_concurrent_decisions_exactly_one_winner(engine, decisions):
         loaded = ApprovalRepository(observer).get_by_id(approval.id)
         assert loaded.status is winner[1]
         assert loaded.decided_at == winner[2]
-        assert TaskRepository(observer).get(task.id).status is (TaskStatus.WAITING_APPROVAL if winner[1] is ApprovalStatus.APPROVED else TaskStatus.REJECTED)
+        assert TaskRepository(observer).get(task.id).status is (TaskStatus.RUNNING if winner[1] is ApprovalStatus.APPROVED else TaskStatus.REJECTED)
 
 
 def test_repository_rejects_pending_candidate(engine):
@@ -176,7 +182,7 @@ def test_decision_statement_failure_rolls_back_and_is_not_conflict(engine, clien
             FOR EACH ROW EXECUTE FUNCTION task024_fail_decision()"""))
     try:
         with Session(engine) as session:
-            service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session))
+            service = ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session), ApprovalContinuationPersistence(session))
             with pytest.raises(SQLAlchemyError, match="task024 persistence failure"):
                 service.decide(approval.id, "approve")
             assert not session.in_transaction()

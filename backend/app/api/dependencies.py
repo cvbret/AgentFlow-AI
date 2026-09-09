@@ -5,6 +5,9 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.agents.runtime import AgentRuntime
+from app.approvals.continuation_persistence import ApprovalContinuationPersistence
+from app.tasks.resume import TaskResumeService
+from app.workflows.checkpoint import open_checkpointer
 from app.approvals.repository import ApprovalRepository
 from app.approvals.service import ApprovalDecisionService
 from app.approvals.rejection_persistence import ApprovalRejectionPersistence
@@ -27,7 +30,12 @@ def build_agent_runtime() -> AgentRuntime:
     llm_client = LLMClient(settings=settings)
     tool_registry = ToolRegistry()
     tool_registry.register(CalculatorTool())
-    return AgentRuntime(llm_client=llm_client, tool_registry=tool_registry)
+    def load_approval(approval_id):
+        with get_session_factory()() as session:
+            return ApprovalRepository(session).get_by_id(approval_id)
+    return AgentRuntime(llm_client=llm_client, tool_registry=tool_registry,
+        checkpointer_factory=lambda: open_checkpointer(settings.database_url),
+        approval_loader=load_approval)
 
 
 def get_agent_runtime() -> AgentRuntime:
@@ -87,5 +95,8 @@ def close_agent_runtime() -> None:
 
 def get_approval_decision_service(
     session: Session = Depends(get_db_session),
+    runtime_provider: Callable[[], AgentRuntime] = Depends(get_agent_runtime_provider),
 ) -> ApprovalDecisionService:
-    return ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session), ApprovalRejectionPersistence(session))
+    return ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session),
+        ApprovalRejectionPersistence(session), ApprovalContinuationPersistence(session),
+        resume=TaskResumeService(session, runtime_provider).resume)

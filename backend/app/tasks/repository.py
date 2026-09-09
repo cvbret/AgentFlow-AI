@@ -64,6 +64,18 @@ class TaskRepository:
             self._session.rollback()
             raise
 
+    def stage_running_if_waiting(self, task: Task) -> bool:
+        candidate = Task.restore(**task.model_dump())
+        if candidate.status is not TaskStatus.RUNNING:
+            raise TaskError("Continuation claim requires a RUNNING Task")
+        result = self._session.execute(
+            update(TaskRecord)
+            .where(TaskRecord.id == candidate.id, TaskRecord.status == TaskStatus.WAITING_APPROVAL.value)
+            .values(status=candidate.status.value, result=None, error=None, updated_at=candidate.updated_at)
+            .execution_options(synchronize_session=False)
+        )
+        return result.rowcount == 1
+
     def stage_rejected_if_waiting(self, task: Task) -> bool:
         """Conditional rejection write; coordinator owns commit and rollback."""
         candidate = Task.restore(**task.model_dump())
