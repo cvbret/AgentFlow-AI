@@ -8,6 +8,10 @@ from app.db.models.task import TaskRecord
 from app.tasks.models import Task, TaskError, TaskStatus
 
 
+class TaskOwnershipLost(TaskError):
+    """The continuation no longer owns the durable RUNNING generation."""
+
+
 class TaskRepository:
     """Persist and restore Task entities through an injected Session."""
 
@@ -33,36 +37,14 @@ class TaskRepository:
             raise
         return persisted_task
 
-    def save_failed_if_running(self, task: Task) -> bool:
-        """Persist a valid FAILED candidate only while durable state is RUNNING.
-
-        False means no matching RUNNING row, not confirmed pause success.
-        """
+    def save_failed_if_running(self, task: Task, expected: Task) -> bool:
+        """Persist FAILED only for the captured RUNNING generation."""
         candidate = Task.restore(**task.model_dump())
         if candidate.status is not TaskStatus.FAILED:
             raise TaskError("Conditional failure persistence requires a FAILED Task")
-        try:
-            result = self._session.execute(
-                update(TaskRecord)
-                .where(
-                    TaskRecord.id == candidate.id,
-                    TaskRecord.status == TaskStatus.RUNNING.value,
-                )
-                .values(
-                    status=TaskStatus.FAILED.value,
-                    result=candidate.result,
-                    error=candidate.error,
-                    updated_at=candidate.updated_at,
-                )
-                .execution_options(synchronize_session=False)
-            )
-            updated = result.rowcount == 1
-            self._session.commit()
-            self._session.expire_all()
-            return updated
-        except SQLAlchemyError:
-            self._session.rollback()
-            raise
+        if expected.status is not TaskStatus.RUNNING:
+            raise TaskError("Conditional failure requires a RUNNING owner")
+        return self.reconcile_if_unchanged(candidate, expected)
 
     def stage_running_if_waiting(self, task: Task) -> bool:
         candidate = Task.restore(**task.model_dump())
@@ -88,6 +70,31 @@ class TaskRepository:
             .execution_options(synchronize_session=False)
         )
         return result.rowcount == 1
+
+    def stage_reconcile_if_unchanged(self, candidate: Task, expected: Task) -> bool:
+        """Stage a generation-fenced update; caller owns commit and rollback."""
+        candidate = Task.restore(**candidate.model_dump())
+        if candidate.id != expected.id:
+            raise TaskError("Recovery identity mismatch")
+        changed = self._session.execute(update(TaskRecord).where(
+            TaskRecord.id == expected.id,
+            TaskRecord.status == expected.status.value,
+            TaskRecord.updated_at == expected.updated_at,
+        ).values(status=candidate.status.value, result=candidate.result,
+                 error=candidate.error, updated_at=candidate.updated_at)
+         .execution_options(synchronize_session=False))
+        return changed.rowcount == 1
+
+    def reconcile_if_unchanged(self, candidate: Task, expected: Task) -> bool:
+        """Commit a claim or lifecycle update only if its snapshot still owns the row."""
+        try:
+            accepted = self.stage_reconcile_if_unchanged(candidate, expected)
+            self._session.commit()
+            self._session.expire_all()
+            return accepted
+        except SQLAlchemyError:
+            self._session.rollback()
+            raise
 
     def get(self, task_id: UUID) -> Task | None:
         record = self._session.get(TaskRecord, task_id)

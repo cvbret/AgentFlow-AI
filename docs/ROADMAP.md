@@ -57,12 +57,13 @@ This roadmap is directional. A phase is not considered complete merely because i
 * AgentRuntime orchestration integration completed by TASK-027
 * Approved Tool Resume integration completed by TASK-028
 * Protected Tool Idempotency / Execution Ledger completed by TASK-029
+* Resume Reliability / Recovery completed by TASK-030
 
 LangGraph evaluation was intentionally deferred until an actual workflow-orchestration requirement appeared. That evaluation completed in TASK-026, and incremental adoption was selected; LangGraph remains not a Day 1 mandatory dependency.
 
 中文释义：先用显式状态和转移表达真实需求，再评估框架是否减少复杂度。不能因为路线图提到 LangGraph，就提前把它加入初始 Runtime。
 
-TASK-030：Resume Reliability / Recovery。
+TASK-031：Observability Foundation。
 
 ## Phase 6 - Observability / 可观测性
 

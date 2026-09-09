@@ -18,7 +18,7 @@ from app.approved_execution import ApprovedToolExecutionService, ResumeAuthoriza
 from app.db.models import ToolExecutionRecord
 from app.executions.models import ToolExecution, ExecutionStatus, canonical_arguments
 from app.executions.repository import ExecutionRepository
-from app.executions.exceptions import ExecutionIdentityConflict, ExecutionReplayBlocked, ExecutionPersistenceConflict
+from app.executions.exceptions import ExecutionIdentityConflict, ExecutionReplayBlocked, ExecutionPersistenceConflict, ExecutionPersistenceUncertain
 from app.llm.schemas import ToolCall, LLMResponse
 from app.tasks.models import Task
 from app.tasks.repository import TaskRepository
@@ -245,8 +245,11 @@ def test_postgresql_write_failure_prevents_blind_reexecution(engine, phase):
         connection.execute(text("CREATE FUNCTION task029_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'ledger write failed'; END; $$"))
         connection.execute(text(f"CREATE TRIGGER task029_failure BEFORE {operation} ON tool_executions FOR EACH ROW EXECUTE FUNCTION task029_fail()"))
     try:
-        with pytest.raises(SQLAlchemyError, match="ledger write failed"):
+        expected_error = SQLAlchemyError if phase == "claim" else ExecutionPersistenceUncertain
+        with pytest.raises(expected_error) as raised:
             execute(service(engine, tool), approval, call)
+        cause = raised.value if phase == "claim" else raised.value.__cause__
+        assert isinstance(cause, SQLAlchemyError) and "ledger write failed" in str(cause)
         assert tool.effects == (0 if phase == "claim" else 1)
         row = ExecutionRepository(lambda: Session(engine)).get(approval.task_id, call.id)
         if phase == "claim":
@@ -365,8 +368,10 @@ def test_commit_ack_loss_never_reexecutes_tool(engine, phase):
                 raise SQLAlchemyError("commit acknowledgement lost")
         event.listen(session, "after_commit", lost_ack)
         return session
-    with pytest.raises(SQLAlchemyError, match="acknowledgement lost"):
+    with pytest.raises(ExecutionPersistenceUncertain) as raised:
         execute(service(engine, tool, ExecutionRepository(factory)), approval, call)
+    assert isinstance(raised.value.__cause__, SQLAlchemyError)
+    assert "acknowledgement lost" in str(raised.value.__cause__)
     fresh = service(engine, tool)
     repository = ExecutionRepository(lambda: Session(engine))
     stored = repository.get(approval.task_id, call.id)

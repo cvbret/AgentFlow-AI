@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.approvals.models import Approval
 from app.approvals.repository import ApprovalRepository
 from app.tasks.models import Task, TaskStatus
-from app.tasks.repository import TaskRepository
+from app.tasks.repository import TaskRepository, TaskOwnershipLost
 
 
 class HITLPausePersistence:
@@ -12,8 +12,9 @@ class HITLPausePersistence:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def save(self, task: Task, approval: Approval) -> None:
-        if task.status is not TaskStatus.WAITING_APPROVAL or approval.task_id != task.id:
+    def save(self, task: Task, approval: Approval, *, expected: Task) -> None:
+        if (task.status is not TaskStatus.WAITING_APPROVAL or approval.task_id != task.id
+                or expected.id != task.id or expected.status is not TaskStatus.RUNNING):
             raise ValueError("Pause requires a waiting Task and its own Approval")
         if self._session.in_transaction():
             raise RuntimeError("Pause requires a Session without an active transaction")
@@ -22,7 +23,8 @@ class HITLPausePersistence:
             ApprovalRepository(self._session).stage_create(approval)
             # Flush the INSERT first; it remains uncommitted if the UPDATE fails.
             self._session.flush()
-            TaskRepository(self._session).stage_save(task)
+            if not TaskRepository(self._session).stage_reconcile_if_unchanged(task, expected):
+                raise TaskOwnershipLost("Pause lost its RUNNING generation")
             self._session.flush()
             self._session.commit()
         except Exception as exc:

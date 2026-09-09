@@ -12,3 +12,10 @@ class ExecutionReplayBlocked(ExecutionLedgerError):
 
 class ExecutionPersistenceConflict(ExecutionLedgerError):
     pass
+
+
+class ExecutionPersistenceUncertain(ExecutionLedgerError):
+    """Local ledger durability is unconfirmed; distinct from an external UNKNOWN.
+
+    Stop continuation and re-read durable evidence through explicit recovery.
+    """

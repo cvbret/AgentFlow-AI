@@ -1,5 +1,5 @@
 from collections.abc import Callable, Sequence
-from contextlib import AbstractContextManager, nullcontext
+from contextlib import AbstractContextManager, nullcontext, contextmanager
 from uuid import UUID
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -10,6 +10,8 @@ from app.agents.exceptions import AgentError, AgentMaxStepsExceededError
 from app.approvals.models import Approval
 from app.approved_execution import ApprovedToolExecutionService, ResumeAuthorizationError
 from app.executions.repository import ExecutionRepository
+from app.executions.recovery import ExecutionRecoveryService
+from app.workflows.recovery import WorkflowEvidence
 from app.llm.client import LLMClient
 from app.llm.schemas import ChatMessage, ToolCall
 from app.protected_execution import ApprovalRequired, ProtectedToolExecutionService
@@ -44,6 +46,8 @@ class AgentRuntime:
         self._tool_registry = tool_registry
         self._max_steps = max_steps
         self._checkpointer_factory = checkpointer_factory
+        self._execution_recovery = (ExecutionRecoveryService(tool_registry, approval_loader, execution_repository)
+                                    if approval_loader is not None else None)
         self._approved_execution = (ApprovedToolExecutionService(tool_registry, approval_loader, execution_repository)
                                     if approval_loader is not None else None)
 
@@ -100,3 +104,47 @@ class AgentRuntime:
             if state.get("__interrupt__"):
                 raise ApprovalRequired(Approval(**state["pending_approval"]))
             return AgentResult(content=state["final_answer"])
+
+    @contextmanager
+    def _recovery_graph(self, task_id: UUID):
+        from app.workflows.agent import build_agent_graph
+        if self._checkpointer_factory is None:
+            raise ResumeAuthorizationError("Durable checkpoint access is not configured")
+        with self._checkpointer_factory() as saver:
+            graph = build_agent_graph(self._llm_client, self._tool_registry.list(),
+                ProtectedToolExecutionService(self._tool_registry), max_steps=self._max_steps,
+                checkpointer=saver, approved_execution=self._approved_execution)
+            yield graph, {"configurable": {"thread_id": str(task_id)}}
+
+    def workflow_evidence(self, task_id: UUID) -> WorkflowEvidence:
+        with self._recovery_graph(task_id) as (graph, config):
+            state = graph.get_state(config)
+            identity = state.config.get("configurable", {}).get("checkpoint_id") if state.config else None
+            return WorkflowEvidence(identity, state.next, state.values)
+
+    def recovery_capability(self, tool_name: str):
+        return self._tool_registry.get(tool_name).metadata().idempotency_mode
+
+    def recover_execution(self, *, task_id, approval_id, tool_call, stale_before):
+        if self._execution_recovery is None:
+            raise ResumeAuthorizationError("Execution recovery is not configured")
+        return self._execution_recovery.recover(task_id=task_id, approval_id=approval_id,
+            tool_call=tool_call, stale_before=stale_before)
+
+    def resume_pending_tool(self, *, task_id: UUID, approval_id: UUID, checkpoint_id: str) -> AgentResult:
+        with self._recovery_graph(task_id) as (graph, config):
+            snapshot = graph.get_state(config)
+            pending = snapshot.values.get("pending_approval")
+            identity = snapshot.config.get("configurable", {}).get("checkpoint_id") if snapshot.config else None
+            if (identity != checkpoint_id or snapshot.next != ("tool",) or not pending
+                    or pending["id"] != str(approval_id) or pending["task_id"] != str(task_id)
+                    or snapshot.values.get("task_id") != str(task_id)
+                    or snapshot.values.get("resume_approval_id") != str(approval_id)):
+                raise ResumeAuthorizationError("Recovery checkpoint correlation changed")
+            call = ToolCall.model_validate(snapshot.values["tool_calls"][snapshot.values["tool_cursor"]])
+            self._approved_execution.validate(task_id=task_id, approval_id=approval_id, tool_call=call)
+            config["recursion_limit"] = 2 * snapshot.values["max_steps"] + 4
+            result = graph.invoke(None, config=config, durability="sync")
+            if result.get("__interrupt__"):
+                raise ApprovalRequired(Approval(**result["pending_approval"]))
+            return AgentResult(content=result["final_answer"])

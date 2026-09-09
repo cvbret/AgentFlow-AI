@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from uuid import UUID, uuid4
 
@@ -34,6 +34,7 @@ class TaskStatus(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     REJECTED = "REJECTED"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
 
 
 class Task(BaseModel):
@@ -60,11 +61,11 @@ class Task(BaseModel):
         if not restoring and self.status is not TaskStatus.PENDING:
             raise ValueError("new Tasks must start in PENDING state")
         if self.status in (
-            TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL, TaskStatus.REJECTED
+            TaskStatus.PENDING, TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL, TaskStatus.REJECTED, TaskStatus.RECOVERY_REQUIRED
         ):
             if self.result is not None or self.error is not None:
                 raise ValueError(
-                    "PENDING, RUNNING, WAITING_APPROVAL and REJECTED Tasks must not have result or error"
+                    "PENDING, RUNNING, WAITING_APPROVAL, REJECTED and RECOVERY_REQUIRED Tasks must not have result or error"
                 )
         elif self.status is TaskStatus.SUCCEEDED:
             if self.error is not None:
@@ -134,6 +135,21 @@ class Task(BaseModel):
     def resume_approved(self, *, now: datetime | None = None) -> None:
         self._require_state(TaskStatus.WAITING_APPROVAL, TaskStatus.RUNNING)
         timestamp = self._transition_timestamp(now)
+        object.__setattr__(self, "status", TaskStatus.RUNNING)
+        object.__setattr__(self, "updated_at", timestamp)
+
+    def require_recovery(self, *, now: datetime | None = None) -> None:
+        if self.status not in (TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL):
+            raise InvalidTaskStateTransitionError("Recovery review requires an active Task")
+        timestamp = self._transition_timestamp(now)
+        object.__setattr__(self, "status", TaskStatus.RECOVERY_REQUIRED)
+        object.__setattr__(self, "updated_at", timestamp)
+
+    def claim_recovery(self, *, now: datetime | None = None) -> None:
+        """Candidate only: dispatcher must win a database compare-and-swap first."""
+        if self.status not in (TaskStatus.RUNNING, TaskStatus.RECOVERY_REQUIRED):
+            raise InvalidTaskStateTransitionError("Recovery claim requires RUNNING or RECOVERY_REQUIRED")
+        timestamp = max(self._transition_timestamp(now), self.updated_at + timedelta(microseconds=1))
         object.__setattr__(self, "status", TaskStatus.RUNNING)
         object.__setattr__(self, "updated_at", timestamp)
 

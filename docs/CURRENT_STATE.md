@@ -302,8 +302,21 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * tool_executions business table managed by Alembic
 * no universal crash-safe exactly-once guarantee
 * 344 passed, 0 failed, 0 skipped, 0 warnings
+* TASK-030 - Resume Reliability / Recovery
+* Initial Independent Review: FAIL with 2 IMPORTANT findings
+* Focused Fix completed; Focused Re-Review: PASS
+* both original IMPORTANT findings closed
+* RECOVERY_REQUIRED Task state and operator-triggered recovery established
+* TaskRecoveryService and evidence-driven Task/Approval/checkpoint/ledger reconciliation established
+* database single-winner recovery claim and generation-fenced lifecycle writes established
+* SUCCEEDED cached recovery and completed Graph reconciliation established
+* stale EXECUTING / UNKNOWN recovery follows capability-aware policy
+* persistence acknowledgement uncertainty separated from known execution failure
+* missing checkpoint and orphan checkpoint detection established without deletion
+* no background automatic recovery or universal crash-safe exactly-once guarantee
+* 384 passed, 0 failed, 0 skipped, 0 warnings
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028 和 TASK-029 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029 和 TASK-030 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -320,8 +333,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-030 - Resume Reliability / Recovery
+TASK-031 - Observability Foundation
 
 Status: Not Started
 
-当前已建立 durable Execution Ledger 与 successful replay protection；下一阶段进入 Resume Reliability / Recovery。当前不开始执行 TASK-030。
+TASK-030 已完成 Resume Reliability / Recovery；下一阶段进入 Observability Foundation。当前不开始执行 TASK-031。

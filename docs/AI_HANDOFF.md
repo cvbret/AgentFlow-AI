@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-029 - Protected Tool Idempotency / Execution Ledger`
+* **Task:** `TASK-030 - Resume Reliability / Recovery`
 * **Review Result:** `PASS`
-* **Summary:** durable protected Tool execution ledger; stable execution identity; database single-winner claim; SUCCEEDED replay returns cached result without re-executing Tool; UNKNOWN/EXECUTING fail closed; persisted Approval remains authorization authority; external idempotency capability contract established; no universal crash-safe exactly-once guarantee; 344 passed, 0 skipped, 0 warnings
+* **Summary:** operator-triggered recovery; RECOVERY_REQUIRED state; evidence-driven Task/Approval/checkpoint/ledger reconciliation; single-winner recovery claims; generation-fenced Task lifecycle writes; SUCCEEDED cached recovery; EXTERNAL_KEY / INHERENT safe recovery; NONE fail-closed; completed Graph reconciliation; persistence acknowledgement uncertainty separated from known failure; no universal crash-safe exactly-once or background automatic recovery; 384 passed, 0 skipped, 0 warnings
 * **Git commit:** `Pending commit`
 
-TASK-029 已通过最终 Independent Review，最终 Review Result 为 `PASS`，当前尚未提交。
+TASK-030 初次 Independent Review 曾发现 2 项 IMPORTANT；Focused Fix 完成后 Focused Re-Review 为 `PASS`，两项 IMPORTANT 均已关闭，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -40,13 +40,14 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: AgentFlow business persistence 与 LangGraph checkpoint persistence 是独立 durable boundaries，当前没有跨两者 transaction atomicity、reconciliation 或 exactly-once 保证。
 * Note: TASK-028 Reviewer 独立验证 318 passed、0 skipped、0 warnings；无 crash-safe exactly-once 保证。
 * Note: TASK-029 Reviewer 独立验证 344 passed、0 skipped、0 warnings；successful ledgered Tool replay 已防止重复执行，但 universal crash-safe exactly-once 仍未保证。
+* Note: TASK-030 最终 PostgreSQL 验证 384 passed、0 skipped、0 warnings；stale recovery、UNKNOWN reconciliation 和 automatic recovery 仍受当前边界约束。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-030 - Resume Reliability / Recovery`
+* **Task:** `TASK-031 - Observability Foundation`
 * **Status:** `Not Started`
 
-当前已建立 durable Execution Ledger 与 successful replay protection；下一阶段进入 Resume Reliability / Recovery。当前不开始执行 TASK-030。
+TASK-030 已完成 Resume Reliability / Recovery；下一阶段进入 Observability Foundation。当前不开始执行 TASK-031。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -72,11 +73,11 @@ Review compatibility if the public error hierarchy is formalized later.
 * TASK-018：Tool execution safety metadata foundation 已建立；unknown/unannotated Tool 默认按可能有副作用处理，Calculator 显式 `side_effect_free=True`。
 * TASK-019：ToolExecutionPolicy 已进入 Tool execution boundary；仅 `side_effect_free=True` 允许 automatic execution，否则在 `Tool.execute()` 前 fail closed。
 * Tool safety decision 来自 Registry 返回的真实 Tool metadata，不信任外部 ToolCall 或 caller-supplied safety flag。
-* Protected Execution Boundary 已建立；approval decision、durable HITL pause、approved Tool continuation、fresh Runtime resume 和 Execution Ledger 已建立，但 universal crash-safe exactly-once 尚未保证。
+* Protected Execution Boundary 已建立；approval decision、durable HITL pause、approved Tool continuation、fresh Runtime resume、Execution Ledger 和 operator-triggered recovery 已建立，但 universal crash-safe exactly-once 尚未保证。
 * TASK-020：Approval 是独立于 TaskStatus 的 Domain Entity；一个 Task 概念上可关联多个 Approval。
 * 新 Approval 只能从 `PENDING` 创建；历史 Approval 通过 `restore(...)` 进行受控恢复。
 * TASK-021：Approval persistence 已建立；`Approval ORM` 不等于 `Approval Domain Entity`，历史实体通过 `Approval.restore(...)` 重新水合。
-* Approval API、Agent pause/resume、ToolExecutionPolicy 自动创建 Approval、approved Tool execution 和 ledgered replay protection 已分阶段建立；stale EXECUTING recovery、UNKNOWN reconciliation、duplicate prevention beyond the ledger 和 cross-store reconciliation 尚未实现。
+* Approval API、Agent pause/resume、ToolExecutionPolicy 自动创建 Approval、approved Tool execution、ledgered replay protection 和 evidence-driven recovery 已分阶段建立；background recovery scanner、automatic UNKNOWN reconciliation、duplicate prevention beyond the ledger 和 cross-store reconciliation 尚未实现。
 * TASK-022：`ProtectedToolExecutionService` 协调 safety policy、`ApprovalRepository` 与 `ToolExecutor`；protected ToolCall 创建持久化 `PENDING` Approval 后抛出 `ApprovalRequired`。
 * Safe Tool 保持 exactly-once automatic execution；side-effectful Tool 与 persistence failure 均不会调用 `Tool.execute()`。
 * TASK-023：`AgentRuntime → ProtectedToolExecutionService → ApprovalRequired → TaskExecutionService → HITLPausePersistence`，以单次短事务原子持久化 Approval(PENDING) 与 Task(WAITING_APPROVAL)。
@@ -89,9 +90,10 @@ Review compatibility if the public error hierarchy is formalized later.
 * Business persistence 由 SQLAlchemy / Repository / Alembic 管理；workflow persistence 由 PostgreSQL-backed PostgresSaver 管理，LangGraph checkpoint tables 不由 AgentFlow Alembic 管理。
 * AgentFlow business state、LangGraph workflow state 和 external side effects 仍是三个独立关注面；TASK-028 连接了正常 continuation，但没有跨三者 transaction atomicity，也没有 crash-safe exactly-once、reconciliation 或 duplicate prevention 保证。
 * TASK-028 已建立 checkpoint-first pause、`WAITING_APPROVAL → RUNNING` continuation claim、Approval-driven resume、approved Tool continuation 和 cursor-based no-replay；TASK-029 已建立 Execution Ledger、stable execution identity、single-winner claim 与 SUCCEEDED cached replay。
-* TASK-029 的 ledger execution state 与 LangGraph checkpoint、Task/Approval business state 分离；`EXECUTING` / `UNKNOWN` 不触发 blind replay，stale recovery、UNKNOWN reconciliation、orphan checkpoint cleanup、stale RUNNING recovery 与 cross-store reconciliation 仍属 TASK-030 及后续能力。
+* TASK-029 的 ledger execution state 与 LangGraph checkpoint、Task/Approval business state 分离；`EXECUTING` / `UNKNOWN` 不触发 blind replay。TASK-030 已建立 operator-triggered recovery 与 evidence-driven reconciliation；background recovery、orphan cleanup、stale RUNNING recovery 与更广泛 cross-store reconciliation 仍属后续能力。
+* TASK-030 已建立 `RECOVERY_REQUIRED`、operator-triggered evidence-driven recovery、single-winner recovery claim、generation fencing、completed Graph reconciliation 及 capability-aware stale ledger recovery；恢复仍不提供 universal crash-safe exactly-once。
 
-Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation 与 successful ledgered replay 已建立，但 universal crash-safe exactly-once 与 recovery/reconciliation 仍属于后续任务。
+Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay 与 operator-triggered recovery 已建立，但 background automatic recovery、universal crash-safe exactly-once 与更广泛 reconciliation 仍属于后续任务。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

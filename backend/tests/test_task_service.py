@@ -38,11 +38,16 @@ def make_recording_repository() -> tuple[
     repository = Mock(spec=TaskRepository)
     snapshots: list[tuple[TaskStatus, str | None, str | None]] = []
 
-    def save(task) -> None:
+    def save(task, expected=None) -> bool:
         snapshots.append((task.status, task.result, task.error))
+        if expected is not None:
+            assert expected.status is TaskStatus.RUNNING
+            assert expected.updated_at <= task.updated_at
+        return True
 
     repository.save.side_effect = save
     repository.save_failed_if_running.side_effect = save
+    repository.reconcile_if_unchanged.side_effect = save
     return repository, snapshots
 
 
@@ -128,8 +133,8 @@ def test_success_final_persistence_failure_propagates_database_error() -> None:
     repository.save.side_effect = [
         None,
         None,
-        SQLAlchemyError("final save failed"),
     ]
+    repository.reconcile_if_unchanged.side_effect = SQLAlchemyError("final save failed")
     runtime = FakeRuntime()
 
     with pytest.raises(SQLAlchemyError, match="final save failed"):

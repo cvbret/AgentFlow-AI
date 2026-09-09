@@ -191,7 +191,8 @@ def test_checkpoint_exists_before_business_pause_failure(engine):
     events = []
     agent, _ = runtime(engine, events, [LLMResponse(tool_calls=[call(2, True)])])
     captured = []
-    def fail(task, approval):
+    def fail(task, approval, *, expected):
+        assert expected.id == task.id and expected.status is TaskStatus.RUNNING
         captured.append(task.id)
         state = snapshot(task.id)
         assert state.next == ("approval_pause",)
@@ -237,8 +238,8 @@ def test_resume_failure_uses_existing_failed_contract(engine, failure):
             TaskResumeService(session, lambda: fresh).resume(task.id, approval.id)
     with Session(engine) as session:
         task = TaskRepository(session).get(task.id)
-        assert task.status is TaskStatus.FAILED
-        assert "private" not in task.error
+        assert task.status is (TaskStatus.RECOVERY_REQUIRED if failure == "tool" else TaskStatus.FAILED)
+        assert "private" not in (task.error or "")
         assert ApprovalRepository(session).get_by_id(approval.id).status is ApprovalStatus.APPROVED
 
 

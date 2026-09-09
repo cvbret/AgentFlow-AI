@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.agents.runtime import AgentRuntime
 from app.approvals.continuation_persistence import ApprovalContinuationPersistence
 from app.tasks.resume import TaskResumeService
+from app.tasks.recovery import TaskRecoveryService
 from app.workflows.checkpoint import open_checkpointer
 from app.approvals.repository import ApprovalRepository
 from app.approvals.service import ApprovalDecisionService
@@ -102,3 +103,10 @@ def get_approval_decision_service(
     return ApprovalDecisionService(ApprovalRepository(session), TaskRepository(session),
         ApprovalRejectionPersistence(session), ApprovalContinuationPersistence(session),
         resume=TaskResumeService(session, runtime_provider).resume)
+
+
+def get_task_recovery_service(
+    runtime_provider: Callable[[], AgentRuntime] = Depends(get_agent_runtime_provider),
+) -> TaskRecoveryService:
+    return TaskRecoveryService(get_session_factory(), runtime_provider,
+        stale_after_seconds=get_settings().recovery_stale_after_seconds)

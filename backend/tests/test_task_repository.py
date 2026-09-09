@@ -141,6 +141,9 @@ def _task_with_status(index: int, created_at: datetime, status: TaskStatus) -> T
         task.start(now=created_at)
         task.mark_waiting_approval(now=created_at)
         task.mark_rejected(now=created_at)
+    elif status is TaskStatus.RECOVERY_REQUIRED:
+        task.start(now=created_at)
+        task.require_recovery(now=created_at)
     elif status is TaskStatus.SUCCEEDED:
         task.start(now=created_at)
         task.succeed(f"result-{index}", now=created_at)
@@ -204,6 +207,7 @@ def test_list_without_status_returns_tasks_in_all_states(session: Session) -> No
         _task_with_status(14, base, TaskStatus.FAILED),
         _task_with_status(15, base, TaskStatus.WAITING_APPROVAL),
         _task_with_status(16, base, TaskStatus.REJECTED),
+        _task_with_status(17, base, TaskStatus.RECOVERY_REQUIRED),
     ]
     for task in tasks:
         repository.save(task)
@@ -397,6 +401,7 @@ def test_conditional_failure_only_updates_running(session, durable_status):
     task.start()
     repository = TaskRepository(session)
     repository.save(task)
+    expected = Task.restore(**task.model_dump())
     candidate = Task.restore(**task.model_dump())
     candidate.fail("safe failure")
     if durable_status is TaskStatus.WAITING_APPROVAL:
@@ -406,7 +411,7 @@ def test_conditional_failure_only_updates_running(session, durable_status):
     elif durable_status is TaskStatus.FAILED:
         task.fail("existing failure")
     repository.save(task)
-    updated = repository.save_failed_if_running(candidate)
+    updated = repository.save_failed_if_running(candidate, expected)
     assert updated is (durable_status is TaskStatus.RUNNING)
     with Session(session.get_bind()) as observer:
         loaded = TaskRepository(observer).get(task.id)
@@ -420,11 +425,12 @@ def test_conditional_failure_only_updates_running(session, durable_status):
 def test_conditional_failure_rejects_nonfailed_candidate(session):
     task = Task(input="invalid candidate")
     with pytest.raises(TaskError, match="FAILED"):
-        TaskRepository(session).save_failed_if_running(task)
+        TaskRepository(session).save_failed_if_running(task, task)
 
 
 def test_conditional_failure_missing_task_returns_false(session):
     task = Task(input="missing")
     task.start()
+    expected = Task.restore(**task.model_dump())
     task.fail("safe failure")
-    assert TaskRepository(session).save_failed_if_running(task) is False
+    assert TaskRepository(session).save_failed_if_running(task, expected) is False

@@ -166,8 +166,9 @@ def test_protected_execution_persists_pending_approval_on_postgresql(
     # The signal itself is unpersisted; only atomic pause makes it durable.
     with Session(session.get_bind()) as read_session:
         assert ApprovalRepository(read_session).get_by_id(raised.value.approval_id) is None
+    expected = Task.restore(**task.model_dump())
     task.mark_waiting_approval()
-    HITLPausePersistence(session).save(task, raised.value.approval)
+    HITLPausePersistence(session).save(task, raised.value.approval, expected=expected)
 
     # A separate Session must see the committed Approval after atomic pause.
     with Session(session.get_bind()) as read_session:

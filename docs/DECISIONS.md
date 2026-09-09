@@ -237,3 +237,68 @@ remain stable if retry/recovery capabilities are added later.
 Before any automatic stale EXECUTING/UNKNOWN recovery, design supported external
 idempotency and outcome reconciliation, retention, authorization revalidation and
 operational ownership. Do not infer outcome certainty from the presence of a key.
+
+
+## ADR-008 - Evidence-driven operator recovery and RECOVERY_REQUIRED
+
+**Status:** Accepted; final Focused Re-Review validated.
+
+### Context
+
+ADR-006/007 preserve durable approval/continuation and execution identity, but
+separate commits can leave stale RUNNING/EXECUTING, UNKNOWN or checkpoint/business
+mismatches. Blind retries cannot infer external effect outcomes.
+
+### Decision
+
+- Add RECOVERY_REQUIRED for unsafe-to-reconcile active Tasks, distinct from known
+  FAILED and human REJECTED. Query/filter it without exposing internal evidence.
+- Provide one operator-triggered recovery endpoint/service; no force payload,
+  background scanner or worker. Configure a positive finite inactivity threshold.
+- Classify fresh Task/Approval/checkpoint/ledger facts. Preserve healthy waiting
+  and recent activity. Report orphan checkpoints without deletion; missing or
+  incompatible active continuation requires review rather than fabricated input.
+- Use Task status/updated_at compare-and-swap to claim dispatch and reconcile
+  completed Graph results. Claims advance the timestamp and commit before work.
+- Retain ordinary ledger fail-closed behavior. A separate ExecutionRecoveryService
+  may claim a stale EXECUTING/UNKNOWN row only for EXTERNAL_KEY/INHERENT, retaining
+  execution UUID/key and revalidating persisted Approval/context. NONE is blocked.
+  One attempt only; repeated ambiguity remains UNKNOWN/RECOVERY_REQUIRED.
+- Fence result writes with the execution claim timestamp. Reuse existing Runtime,
+  approved result cache and Task lifecycle handlers; no second lifecycle machine.
+- Task lifecycle writes are recovery-generation/claim protected: capture RUNNING
+  status and exact updated_at before continuation, then require that generation
+  for FAILED, SUCCEEDED and WAITING_APPROVAL writes. Losing ownership stops the
+  old actor without an unconditional failure fallback. The waiting update and
+  new Approval remain atomic; a lost generation rolls both writes back.
+- Persistence acknowledgement uncertainty does not imply known FAILED. Emit
+  ExecutionPersistenceUncertain for unconfirmed local ledger result persistence
+  or claim/result commit acknowledgement; keep its database cause. A continuation
+  receiving it leaves Task RUNNING for evidence-based recovery. This is separate
+  from external UNKNOWN and does not replace known execution failure semantics.
+  Recovery re-reads durable truth through fresh Task/Approval/ledger/checkpoint
+  reads; committed SUCCEEDED results are cached, never re-executed.
+- Map uncertain/blocked normal execution to RECOVERY_REQUIRED so later evidence can
+  be reviewed without reopening known terminal FAILED/REJECTED Tasks.
+
+### Consequences
+
+Normal simultaneous recovery requests have one Task dispatch winner. Successful
+ledger replay retains effect count one; explicit capability-based recovery keeps
+external operation identity. Completed checkpoints can repair RUNNING Task result
+persistence without invoking LLM/Tool. Lost acknowledgement is resolved from fresh
+durable facts when possible, not from a guess about the prior exception.
+
+Staleness does not prove the previous actor stopped. Optimistic timestamps do not
+constitute a worker lease/heartbeat system. Safe repetition depends on declared
+Tool/provider idempotency; there is no universal exactly-once guarantee. Unsupported
+checkpoint shapes, historical incompatible terminal Tasks, missing facts and
+repeated ambiguity remain operator concerns. No orphan deletion, compensation,
+2PC, scheduler, queue or automatic recovery is introduced.
+
+### Revisit Trigger
+
+Before background recovery, long-running ownership or more general graph replay,
+design actor liveness, stronger fencing/leases if needed, operator access policies,
+external outcome reconciliation and retention explicitly. Do not reinterpret
+RECOVERY_REQUIRED as permission to force an operation.

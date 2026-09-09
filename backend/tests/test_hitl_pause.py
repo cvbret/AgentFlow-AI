@@ -42,7 +42,7 @@ def recording_tasks():
     repository = Mock(spec=TaskRepository)
     snapshots = []
     repository.save.side_effect = lambda task: snapshots.append(task.model_copy(deep=True))
-    repository.save_failed_if_running.side_effect = repository.save.side_effect
+    repository.save_failed_if_running.side_effect = lambda task, expected: repository.save.side_effect(task)
     return repository, snapshots
 
 
@@ -65,7 +65,8 @@ def test_service_returns_waiting_only_after_atomic_save():
     runtime, _, _, _ = make_runtime()
     tasks, snapshots = recording_tasks()
     pause = Mock(spec=HITLPausePersistence)
-    def save(waiting, approval):
+    def save(waiting, approval, *, expected):
+        assert expected.model_dump() == snapshots[-1].model_dump()
         assert snapshots[-1].status is TaskStatus.RUNNING
         assert approval.task_id == waiting.id == snapshots[-1].id
         assert waiting.status is TaskStatus.WAITING_APPROVAL
@@ -219,9 +220,9 @@ def test_postgresql_pause_failure_rolls_back_both_writes(engine, postgres_pause_
                 snapshots.append(task.model_copy(deep=True))
                 return original_save(task)
             original_fail = tasks.save_failed_if_running
-            def fail(task):
+            def fail(task, expected):
                 snapshots.append(task.model_copy(deep=True))
-                updated = original_fail(task)
+                updated = original_fail(task, expected)
                 assert updated is True
                 return updated
             with patch.object(tasks, "save", side_effect=save), patch.object(tasks, "save_failed_if_running", side_effect=fail), patch.object(tool, "execute", wraps=tool.execute) as execute:
@@ -381,9 +382,9 @@ def test_real_commit_acknowledgement_loss_preserves_durable_pause(engine, throug
                 raise error
         tasks = TaskRepository(session)
         conditional_save = tasks.save_failed_if_running
-        def fail(candidate):
+        def fail(candidate, expected):
             assert candidate.status is TaskStatus.FAILED
-            outcome = conditional_save(candidate)
+            outcome = conditional_save(candidate, expected)
             outcomes.append(outcome)
             return outcome
         service = TaskExecutionService(tasks, lambda: runtime, HITLPausePersistence(session))

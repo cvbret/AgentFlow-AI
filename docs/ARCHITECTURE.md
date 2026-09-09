@@ -327,7 +327,8 @@ This does not introduce a failed-node recovery API, automatic scanner or worker.
 
 Remaining window: Tool effect succeeds -> process crash before ledger success ->
 EXECUTING remains. Its external outcome cannot be inferred from the ledger.
-UNKNOWN and stale EXECUTING recovery/reconciliation remain TASK-030 concerns.
+TASK-030 below adds operator-triggered, capability-gated recovery; ordinary
+execution still rejects UNKNOWN and stale EXECUTING.
 No universal crash-safe exactly-once guarantee. No retries, leases, heartbeats,
 queue, worker, outbox, saga, two-phase commit or orphan checkpoint cleanup is added.
 
@@ -336,3 +337,106 @@ a database also containing LangGraph tables sees those unowned tables as removal
 differences; do not generate or apply their deletion. TASK-029 verifies the business
 migration/ORM in an isolated business-only PostgreSQL database and runs acceptance
 and full regression against the combined PostgreSQL setup.
+
+
+## Operator Recovery (TASK-030 / ADR-008)
+
+`POST /api/tasks/{task_id}/recover -> TaskRecoveryService` exposes a small response:
+`task_id` and `outcome` (recovered, no_action, still_in_progress, recovery_required,
+or orphan_checkpoint). No Graph JSON, ledger record, force flag or retry parameter
+is exposed. Task Query/list filtering includes recovery_required. No background
+scheduler, scanner, polling, worker or automatic deletion is installed.
+
+RECOVERY_REQUIRED is an operational state: durable execution facts cannot yet be
+safely reconciled. It is distinct from a known FAILED result or human REJECTED
+outcome, and carries neither result nor error. RUNNING/WAITING_APPROVAL may enter
+it. An evidence-backed recovery claim may move RECOVERY_REQUIRED to RUNNING;
+the Domain method creates a candidate only. The database must accept expected
+status + updated_at before dispatch. Ordinary start/resume-approved transitions
+do not reopen RECOVERY_REQUIRED.
+
+RECOVERY_STALE_AFTER_SECONDS defaults to 300 in configuration and .env.example;
+it must be positive and finite and can be changed for deployment. Task.updated_at
+and execution updated_at are examined. Recent RUNNING Tasks or recent execution
+activity are left alone. Staleness is evidence of inactivity, not proof a process
+has died; this is not a heartbeat or lease system.
+
+Classification uses fresh business reads and a Runtime WorkflowEvidence DTO
+(checkpoint identity, next nodes, serialized values), with no active business
+transaction across checkpoint inspection or execution:
+
+| Durable facts | Action |
+| --- | --- |
+| WAITING_APPROVAL + matching PENDING Approval + approval_pause | NO_ACTION; no writes |
+| Recent Task/execution activity | STILL_IN_PROGRESS; no dispatch |
+| Stale RUNNING + matching APPROVED Approval + approval_pause | Claim then existing AgentRuntime.resume |
+| Matching approved pending tool node | Claim then resume_pending_tool from the checked checkpoint |
+| SUCCEEDED ledger | Existing approved execution returns cached result |
+| Stale EXECUTING/UNKNOWN + NONE or missing Tool capability | RECOVERY_REQUIRED; no effect |
+| Stale EXECUTING/UNKNOWN + EXTERNAL_KEY/INHERENT | One explicit ExecutionRecoveryService attempt |
+| RUNNING + matching completed checkpoint and non-empty final answer | Conditional SUCCEEDED reconciliation; no LLM/Tool |
+| Missing/incompatible checkpoint for waiting/stale active Task | Persist RECOVERY_REQUIRED; never invent initial input |
+| Checkpoint without Task/Approval or incompatible terminal business state | ORPHAN_CHECKPOINT; never delete |
+
+A healthy SUCCEEDED Task with matching completed checkpoint returns NO_ACTION.
+A nonexistent Task without checkpoint also returns NO_ACTION. Existing FAILED and
+REJECTED terminal Tasks are not reopened. Unsupported intermediate graph shapes
+require operator review; this foundation is not a general graph recovery engine.
+
+TaskRepository.reconcile_if_unchanged compares Task.id, expected status and exact
+updated_at. A winning recovery claim advances updated_at strictly, even at equal
+clock precision, and commits before dispatch. Losing requests do not dispatch.
+Checkpoint identity is rechecked after claiming. A changed checkpoint suppresses
+dispatch rather than overwriting workflow state. Completed-result reconciliation
+uses the same conditional persistence and cannot overwrite a newer Task state.
+
+TaskExecutionService captures a detached RUNNING snapshot before invoking the
+continuation. All three lifecycle exits compare Task.id, RUNNING status and that
+exact updated_at generation: FAILED, SUCCEEDED and WAITING_APPROVAL. A failed CAS
+stops the old actor; it never falls back to an unconditional FAILED write. Pause
+stages the generation check and new Approval in one transaction, rolling back the
+Approval if ownership was lost. This also fences normal continuation writers
+against a newer recovery owner while that owner is still RUNNING.
+
+ExecutionRecoveryService retains Approval authorization and exact execution
+context checks. It accepts only an existing stale EXECUTING/UNKNOWN identity with
+explicit EXTERNAL_KEY or INHERENT capability. A conditional execution claim checks
+UUID/status/updated_at and retains the same UUID/key, resets UNKNOWN to EXECUTING
+for this one attempt and commits before external work. Shared execution mechanics
+persist result/outcome. Normal and recovery result writes include their expected
+claim timestamp, preventing an old writer from overwriting a newer recovery claim.
+SUCCEEDED is subsequently consumed through the ordinary approved cache path.
+No generic bypass is added to ApprovedToolExecutionService.
+
+EXTERNAL_KEY recovery sends the same durable idempotency key. INHERENT relies on
+the Tool's explicit idempotent semantics. NONE never re-executes an uncertain
+operation. If recovery is again ambiguous, UNKNOWN remains in the ledger and
+Task becomes RECOVERY_REQUIRED; no loop retries it. Recent repeated operator
+requests cannot immediately trigger another attempt.
+
+TaskRecoveryService reuses TaskResumeService/TaskExecutionService for completion,
+known failures and subsequent approval pauses. Normal execution now maps
+ToolExecutionOutcomeUnknown and ExecutionReplayBlocked to conditional
+RECOVERY_REQUIRED rather than the old generic FAILED path. Known failures remain
+FAILED. This necessary state-semantic change keeps uncertain executions eligible
+for evidence-based recovery without reopening terminal failures. Historical
+FAILED/REJECTED records are not automatically rewritten or retried.
+
+ExecutionPersistenceUncertain is a local ledger persistence signal, distinct from
+external ToolExecutionOutcomeUnknown and known execution failure. ExecutionRepository
+wraps SQLAlchemy errors at claim/result commit acknowledgement boundaries and result
+writes; the original database error remains the cause. TaskExecutionService stops
+without writing FAILED or changing RUNNING on this signal. It does not infer whether
+the database committed. Known input/provider/budget and explicit no-effect Tool
+failures retain their failure contract; external ambiguity still requires recovery.
+A fresh operator recovery reads Task, Approval, ledger and checkpoint evidence. A
+committed SUCCEEDED ledger is consumed from cache, even when the original caller
+received a commit error; a non-SUCCEEDED row still follows capability/staleness rules.
+
+Recovery decisions use current durable truth, not the last caller's exception.
+Tests commit APPROVED/RUNNING, lose acknowledgement, then recover with fresh runtime
+and service based on the committed records. Result-commit uncertainty and missing
+facts can still require another operator review. Timestamp claims are short
+optimistic ownership checks, not durable liveness guarantees. The safety of an
+EXTERNAL_KEY/INHERENT replay depends on the Tool/provider honoring that contract.
+No universal exactly-once. No background automatic recovery.

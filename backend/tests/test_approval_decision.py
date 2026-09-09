@@ -49,8 +49,9 @@ def seed(engine):
     approval = Approval(task_id=task.id, tool_call_id="call_decision", tool_name="protected", arguments={"nested": [1, {"key": "value"}]})
     with Session(engine) as session:
         TaskRepository(session).save(task)
+        expected = Task.restore(**task.model_dump())
         task.mark_waiting_approval()
-        HITLPausePersistence(session).save(task, approval)
+        HITLPausePersistence(session).save(task, approval, expected=expected)
     return task, approval
 
 

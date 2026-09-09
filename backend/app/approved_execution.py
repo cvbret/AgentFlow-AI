@@ -48,6 +48,11 @@ class ApprovedToolExecutionService:
         execution, won = self._executions.claim(candidate)
         if not won:
             return self._replay(execution, candidate)
+        return self._execute_claimed(tool, execution)
+
+    def _execute_claimed(self, tool, execution):
+        """Shared mechanics; entry points must first authorize and commit a claim."""
+        tool_call = ToolCall(id=execution.tool_call_id, name=execution.tool_name, arguments=execution.arguments)
         try:
             if tool.metadata().idempotency_mode is IdempotencyMode.EXTERNAL_KEY:
                 result = tool.execute(tool_call.arguments,
@@ -65,12 +70,14 @@ class ApprovedToolExecutionService:
             raise ToolExecutionOutcomeUnknown("Tool execution outcome is uncertain") from exc
         # Persistence errors leave EXECUTING (or committed SUCCEEDED on lost ack).
         # Never retry Tool or guess FAILED when this write fails.
-        self._executions.finish(execution.finish(ExecutionStatus.SUCCEEDED, result_content=result.content))
+        self._executions.finish(execution.finish(ExecutionStatus.SUCCEEDED, result_content=result.content),
+                                expected_updated_at=execution.updated_at)
         return ToolExecutionResult(tool_call_id=tool_call.id, tool_name=tool_call.name, content=result.content)
 
     def _persist_failure(self, execution, status, code, original):
         try:
-            self._executions.finish(execution.finish(status, error_code=code))
+            self._executions.finish(execution.finish(status, error_code=code),
+                                    expected_updated_at=execution.updated_at)
         except Exception as persistence_error:
             raise original from persistence_error
 

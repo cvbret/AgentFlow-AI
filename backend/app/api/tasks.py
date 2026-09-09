@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from app.tasks.models import Task, TaskStatus
 from app.tasks.repository import TaskRepository
-from app.api.dependencies import get_task_repository
+from app.api.dependencies import get_task_repository, get_task_recovery_service
+from app.tasks.recovery import TaskRecoveryService, RecoveryResult
 
 
 class TaskQueryResponse(BaseModel):
@@ -38,7 +39,7 @@ class TaskListResponse(BaseModel):
     offset: int
 
 
-TaskStatusQuery = Literal["pending", "running", "succeeded", "failed", "waiting_approval", "rejected"]
+TaskStatusQuery = Literal["pending", "running", "succeeded", "failed", "waiting_approval", "rejected", "recovery_required"]
 
 
 router = APIRouter()
@@ -75,3 +76,8 @@ def get_task(
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")
     return TaskQueryResponse.from_domain(task)
+
+
+@router.post("/tasks/{task_id}/recover", response_model=RecoveryResult)
+def recover_task(task_id: UUID, service: TaskRecoveryService = Depends(get_task_recovery_service)) -> RecoveryResult:
+    return service.recover(task_id)
