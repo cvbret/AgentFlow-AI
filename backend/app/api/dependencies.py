@@ -14,6 +14,7 @@ from app.approvals.rejection_persistence import ApprovalRejectionPersistence
 from app.tasks.pause_persistence import HITLPausePersistence
 from app.core.config import get_settings
 from app.db.session import get_session_factory
+from app.executions.repository import ExecutionRepository
 from app.llm.client import LLMClient
 from app.tasks.repository import TaskRepository
 from app.tasks.service import TaskExecutionService
@@ -35,7 +36,8 @@ def build_agent_runtime() -> AgentRuntime:
             return ApprovalRepository(session).get_by_id(approval_id)
     return AgentRuntime(llm_client=llm_client, tool_registry=tool_registry,
         checkpointer_factory=lambda: open_checkpointer(settings.database_url),
-        approval_loader=load_approval)
+        approval_loader=load_approval,
+        execution_repository=ExecutionRepository(get_session_factory()))
 
 
 def get_agent_runtime() -> AgentRuntime:

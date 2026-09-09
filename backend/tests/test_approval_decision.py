@@ -18,7 +18,7 @@ from app.approvals.continuation_persistence import ApprovalContinuationPersisten
 from app.approvals.repository import ApprovalRepository
 from app.approvals.rejection_persistence import ApprovalRejectionPersistence
 from app.approvals.service import ApprovalDecisionService, ApprovalDecisionConflictError, ApprovalTaskContextError
-from app.db.models import ApprovalRecord, TaskRecord
+from app.db.models import ApprovalRecord, TaskRecord, ToolExecutionRecord
 from app.main import app
 from app.tasks import Task, TaskStatus
 from app.tasks.repository import TaskRepository
@@ -37,6 +37,7 @@ def engine():
         yield engine
     finally:
         with engine.begin() as connection:
+            connection.execute(delete(ToolExecutionRecord))
             connection.execute(delete(ApprovalRecord))
             connection.execute(delete(TaskRecord))
         engine.dispose()

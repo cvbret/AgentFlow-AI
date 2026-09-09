@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from test_approval_decision import engine
 from app.agents.runtime import AgentRuntime, AgentMaxStepsExceededError
+from app.executions.repository import ExecutionRepository
 from app.approved_execution import ApprovedToolExecutionService, ResumeAuthorizationError
 from app.approvals.models import Approval, ApprovalStatus
 from app.approvals.repository import ApprovalRepository
@@ -62,7 +63,7 @@ def runtime(engine, events, responses, *, max_steps=5):
             return ApprovalRepository(session).get_by_id(approval_id)
     return AgentRuntime(llm, registry(events), max_steps=max_steps,
         checkpointer_factory=lambda: open_checkpointer(os.environ["DATABASE_URL"]),
-        approval_loader=load), llm
+        approval_loader=load, execution_repository=ExecutionRepository(lambda: Session(engine))), llm
 
 
 def start(engine, runtime):
@@ -366,7 +367,7 @@ def test_raw_resume_payload_cannot_authorize_tool(engine, payload):
     tools = registry(events)
     with open_checkpointer(os.environ["DATABASE_URL"]) as saver:
         graph = build_agent_graph(Mock(), tools.list(), ProtectedToolExecutionService(tools),
-            max_steps=5, checkpointer=saver, approved_execution=ApprovedToolExecutionService(tools, load))
+            max_steps=5, checkpointer=saver, approved_execution=ApprovedToolExecutionService(tools, load, ExecutionRepository(lambda: Session(engine))))
         if isinstance(payload, str):
             payload = {"task_id": str(task.id), "approval_id": str(approval.id)}
         with pytest.raises(ResumeAuthorizationError):

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from app.agents.exceptions import AgentError, AgentMaxStepsExceededError
 from app.approvals.models import Approval
 from app.approved_execution import ApprovedToolExecutionService, ResumeAuthorizationError
+from app.executions.repository import ExecutionRepository
 from app.llm.client import LLMClient
 from app.llm.schemas import ChatMessage, ToolCall
 from app.protected_execution import ApprovalRequired, ProtectedToolExecutionService
@@ -34,6 +35,7 @@ class AgentRuntime:
         *,
         checkpointer_factory: Callable[[], AbstractContextManager[BaseCheckpointSaver]] | None = None,
         approval_loader: Callable[[UUID], Approval | None] | None = None,
+        execution_repository: ExecutionRepository | None = None,
     ) -> None:
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
@@ -42,7 +44,7 @@ class AgentRuntime:
         self._tool_registry = tool_registry
         self._max_steps = max_steps
         self._checkpointer_factory = checkpointer_factory
-        self._approved_execution = (ApprovedToolExecutionService(tool_registry, approval_loader)
+        self._approved_execution = (ApprovedToolExecutionService(tool_registry, approval_loader, execution_repository)
                                     if approval_loader is not None else None)
 
     def close(self) -> None:

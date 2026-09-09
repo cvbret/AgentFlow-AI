@@ -288,8 +288,22 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * normal approval concurrency remains single-winner
 * no crash-safe exactly-once guarantee established
 * 318 passed, 0 failed, 0 skipped, 0 warnings
+* TASK-029 - Protected Tool Idempotency / Execution Ledger
+* TASK-029 review result: PASS
+* Protected Tool Execution Ledger established
+* independent execution UUID and stable idempotency_key established
+* UNIQUE(task_id, tool_call_id) business uniqueness established
+* EXECUTING / SUCCEEDED / FAILED / UNKNOWN ledger states established
+* database-enforced single-winner execution claim established
+* SUCCEEDED replay reuses durable result without re-executing the Tool
+* UNKNOWN and EXECUTING fail closed
+* persisted Approval remains authorization Source of Truth
+* Tool idempotency capability contract established: NONE / EXTERNAL_KEY / INHERENT
+* tool_executions business table managed by Alembic
+* no universal crash-safe exactly-once guarantee
+* 344 passed, 0 failed, 0 skipped, 0 warnings
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027 和 TASK-028 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028 和 TASK-029 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -306,8 +320,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-029 - Protected Tool Idempotency / Execution Ledger
+TASK-030 - Resume Reliability / Recovery
 
 Status: Not Started
 
-当前已建立 durable protected Tool pause/resume；下一阶段进入 Protected Tool Idempotency / Execution Ledger。当前不开始执行 TASK-029。
+当前已建立 durable Execution Ledger 与 successful replay protection；下一阶段进入 Resume Reliability / Recovery。当前不开始执行 TASK-030。

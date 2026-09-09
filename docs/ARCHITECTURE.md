@@ -244,7 +244,7 @@ Tool.execute retains input validation and ToolResult/error handling.
 5. Runtime validates durable thread/Approval correlation and persisted approval
    before Command(resume). ApprovedToolExecutionService rereads business Approval
    and requires APPROVED plus exact approval ID, task ID, tool_call_id, tool name
-   and JSON arguments before Registry resolution and Tool.execute. Payloads are
+   and JSON arguments before execution-ledger inspection (TASK-029), Registry resolution and Tool.execute. Payloads are
    correlation only; no approved boolean, force flag or generic policy bypass.
 
 Approval routes and successful response DTOs are unchanged. Approve dispatches
@@ -253,11 +253,86 @@ state. Continuation failures propagate through existing error handling after the
 committed decision, with best-effort FAILED persistence. Retrying the decision
 returns conflict and does not dispatch another resume. Reject never resumes.
 
-There is no crash-safe exactly-once guarantee. A successful external Tool effect
-followed by a crash before checkpoint/completion persistence can replay during
-future recovery. A committed RUNNING claim followed by dispatch/process failure
+There is no crash-safe exactly-once guarantee. TASK-029 below adds cached-result
+replay when the execution ledger has durably recorded success, and fail-closed
+handling when it has not. External outcomes can still be ambiguous. A committed RUNNING claim followed by dispatch/process failure
 can leave stale RUNNING state. Orphan checkpoints, commit acknowledgement
 uncertainty and cross-store reconciliation are not repaired in this task.
 TASK-029 owns ledger/idempotency/duplicate prevention; later recovery and
 reconciliation work (TASK-030 scope to be defined) remains separate. No automatic
 recovery, queue, worker, parallel approvals or distributed execution is added.
+
+
+## Protected Tool Execution Ledger (TASK-029 / ADR-007)
+
+ApprovedToolExecutionService always verifies persisted APPROVED authorization
+before consulting the Execution Ledger, including before returning a cached result.
+The ledger cannot grant human authorization. Graph state and checkpoint tables
+are unchanged; existing task_id and ToolCall.id identify the business execution.
+
+ToolExecution is a separate execution Domain entity. tool_executions is a business
+table managed by SQLAlchemy and Alembic migration 0003_create_tool_executions.
+Execution UUID is independent of Approval UUID; UNIQUE(task_id, tool_call_id)
+defines business uniqueness. idempotency_key is the stable string form of the
+execution UUID, with a database unique constraint. Task and Approval foreign keys
+are restrictive, matching repository conventions; no cascade deletion or ledger
+cleanup policy is introduced.
+
+ExecutionRepository owns a short Session for each read/claim/completion operation.
+INSERT ... ON CONFLICT DO NOTHING uses the database business-key constraint;
+a preceding inspection is an optimization, not the concurrency guard. A losing
+claim loads the winner's identity/key/status. Claim commit must succeed before
+Tool.execute; no business transaction spans external execution. Terminal writes
+conditionally require the same UUID still in EXECUTING, and commit separately.
+
+| Status | Meaning | Automatic repeated request |
+| --- | --- | --- |
+| EXECUTING | Durable claim; external effect may already have occurred | Fail closed |
+| SUCCEEDED | Successful Tool result durably stored | Return stored ToolExecutionResult; no Tool call |
+| FAILED | Explicitly known failure without external effect | Fail closed; no retry |
+| UNKNOWN | External outcome is uncertain | Raise ToolExecutionOutcomeUnknown; no retry |
+
+Domain enforces state/result/error/timestamp invariants and terminal transitions.
+Stored errors are classification codes, not arbitrary provider exception messages.
+Identity comparison includes task_id, tool_call_id, approval_id, tool name and
+canonical JSON arguments. Sorting keys makes object insertion order irrelevant;
+JSON types remain distinct and non-finite numeric values are rejected. The same
+comparison is used by Approval authorization. A context mismatch never returns
+an old result or executes a Tool.
+
+Tool input validation is reused and performed before claiming; invalid input and
+missing Tool resolution cannot produce an effect or create a ledger row. During
+execution, only ToolExecutionFailedWithoutEffect explicitly establishes FAILED.
+A generic ToolExecutionError does not prove the external outcome: it is recorded
+as UNKNOWN, as is an explicit ToolExecutionOutcomeUnknown signal. A process exit
+or a persistence failure can leave EXECUTING; automatic replay is still blocked.
+Successful-result persistence errors do not trigger Tool retry or overwrite the
+execution as FAILED. If commit succeeded but its acknowledgement was lost, a
+fresh inspection finds SUCCEEDED and reuses the result.
+
+ToolMetadata.idempotency_mode is NONE by default; EXTERNAL_KEY and INHERENT are
+explicit capability descriptions independent of side_effect_free. Capabilities
+do not grant automatic recovery rights in TASK-029. Existing Tool.execute(data)
+and Calculator remain compatible. For EXTERNAL_KEY only, the approved boundary
+passes ToolExecutionContext(idempotency_key=stored_key) to execute; Tool dispatches
+to an explicit _execute_with_context hook. Missing context or an unimplemented
+hook fails before external execution. Tools never receive an ExecutionRepository.
+A fake endpoint proves equal keys share one external operation and different
+executions receive distinct keys, without network dependencies.
+
+Closed replay window: Tool effect succeeds -> ledger SUCCEEDED -> graph progress
+not recorded -> controlled workflow replay returns the cached result and continues
+LLM execution. A fresh graph/saver test proves effect count remains 1 before/after.
+This does not introduce a failed-node recovery API, automatic scanner or worker.
+
+Remaining window: Tool effect succeeds -> process crash before ledger success ->
+EXECUTING remains. Its external outcome cannot be inferred from the ledger.
+UNKNOWN and stale EXECUTING recovery/reconciliation remain TASK-030 concerns.
+No universal crash-safe exactly-once guarantee. No retries, leases, heartbeats,
+queue, worker, outbox, saga, two-phase commit or orphan checkpoint cleanup is added.
+
+Migration verification must respect schema ownership. A raw `alembic check` against
+a database also containing LangGraph tables sees those unowned tables as removal
+differences; do not generate or apply their deletion. TASK-029 verifies the business
+migration/ORM in an isolated business-only PostgreSQL database and runs acceptance
+and full regression against the combined PostgreSQL setup.

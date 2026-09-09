@@ -16,3 +16,11 @@ class DuplicateToolError(ToolError):
 
 class ToolNotFoundError(ToolError):
     """Raised when a requested Tool name is not registered."""
+
+
+class ToolExecutionOutcomeUnknown(ToolExecutionError):
+    """External effect may have occurred; automatic replay is prohibited."""
+
+
+class ToolExecutionFailedWithoutEffect(ToolExecutionError):
+    """Explicit Tool contract: operation failed with no external effect."""

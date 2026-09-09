@@ -187,3 +187,53 @@ Before adding automatic recovery, retries, workers or parallel approvals, design
 execution identity/ledger, duplicate prevention and business/checkpoint
 reconciliation explicitly. Do not infer execution permission from checkpoint
 Approval snapshots or resume booleans.
+
+
+## ADR-007 - Durable protected execution identity and fail-closed replay
+
+**Status:** Accepted; final Independent Review validated.
+
+### Context
+
+ADR-006 establishes approved durable continuation, but an external Tool effect
+can finish before workflow progress is durable. A workflow checkpoint is not an
+execution authorization or durable result ledger.
+
+### Decision
+
+- Establish separate ToolExecution Domain and business persistence, with its own
+  UUID, UNIQUE(task_id, tool_call_id), Approval correlation and stable UUID-derived
+  idempotency key. Do not put the record into LangGraph state.
+- Authorize from persisted Approval first. Compare full execution context using
+  canonical JSON arguments before either cached result or execution.
+- Database conditional insertion selects one durable execution claim winner.
+  Commit claim before the external operation; commit terminal result separately.
+  Never hold a transaction across a Tool operation.
+- EXECUTING records a claim, not evidence of absent effect. SUCCEEDED permits only
+  result reuse. FAILED means explicit known no-effect failure. UNKNOWN indicates
+  uncertain external outcome. EXECUTING/FAILED/UNKNOWN never authorize automatic
+  replay. Generic Tool failures are conservatively UNKNOWN.
+- Add NONE (default), EXTERNAL_KEY and INHERENT capability descriptions. External
+  key Tools accept a minimal execution context through an explicit hook; neither
+  capability enables automatic retry/recovery in this task.
+
+### Consequences
+
+A successful ledger result closes duplicate replay after graph progress loss.
+Normal concurrent requests have a single-winner execution claim. The separate
+external-effect/result-commit window remains ambiguous; stale EXECUTING and
+UNKNOWN require later recovery/reconciliation design. Lost result-commit
+acknowledgement may be resolved by a later read of SUCCEEDED without execution;
+lost claim acknowledgement never permits blind execution. There is no universal
+crash-safe exactly-once guarantee. No lease, retry loop or recovery service is added.
+
+Validation errors before execution do not create ledger rows. Explicit no-effect
+failure signals are a Tool implementation contract; falsely declaring that signal
+cannot be corrected by the ledger. Independent UUID/key and persisted context must
+remain stable if retry/recovery capabilities are added later.
+
+### Revisit Trigger
+
+Before any automatic stale EXECUTING/UNKNOWN recovery, design supported external
+idempotency and outcome reconciliation, retention, authorization revalidation and
+operational ownership. Do not infer outcome certainty from the presence of a key.
