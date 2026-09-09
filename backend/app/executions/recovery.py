@@ -31,4 +31,5 @@ class ExecutionRecoveryService(ApprovedToolExecutionService):
         claimed = self._executions.claim_recovery(execution, stale_before=stale_before)
         if claimed is None:
             raise ExecutionReplayBlocked("Recovery execution claim lost")
+        self._observe("tool.execution.claimed", claimed, tool=tool)
         return self._execute_claimed(tool, claimed)

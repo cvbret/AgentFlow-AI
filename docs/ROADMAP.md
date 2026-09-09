@@ -63,14 +63,16 @@ LangGraph evaluation was intentionally deferred until an actual workflow-orchest
 
 中文释义：先用显式状态和转移表达真实需求，再评估框架是否减少复杂度。不能因为路线图提到 LangGraph，就提前把它加入初始 Runtime。
 
-TASK-031：Observability Foundation。
+TASK-031：Observability Foundation 已完成。
+
+下一阶段：TASK-032 - Project Hardening / Final Validation。
 
 ## Phase 6 - Observability / 可观测性
 
-* structured logging
-* tracing
-* metrics
-* audit history
+* structured logging foundation completed by TASK-031
+* tracing backend remains future capability
+* metrics backend remains future capability
+* persistent audit history remains future capability
 
 ## Phase 7 - Human in the Loop / 人在回路
 

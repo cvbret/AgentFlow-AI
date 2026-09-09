@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-030 - Resume Reliability / Recovery`
+* **Task:** `TASK-031 - Observability Foundation`
 * **Review Result:** `PASS`
-* **Summary:** operator-triggered recovery; RECOVERY_REQUIRED state; evidence-driven Task/Approval/checkpoint/ledger reconciliation; single-winner recovery claims; generation-fenced Task lifecycle writes; SUCCEEDED cached recovery; EXTERNAL_KEY / INHERENT safe recovery; NONE fail-closed; completed Graph reconciliation; persistence acknowledgement uncertainty separated from known failure; no universal crash-safe exactly-once or background automatic recovery; 384 passed, 0 skipped, 0 warnings
+* **Summary:** framework-neutral structured observability foundation; request/task/workflow/approval/execution/tool-call correlation; server-generated request IDs; 18 lifecycle events; sensitive-data allowlist; LLM retry/recovery visibility; transaction/generation truthfulness; best-effort telemetry isolation; no metrics backend, distributed tracing backend or persistent audit log; 417 passed, 0 skipped, 0 warnings
 * **Git commit:** `Pending commit`
 
-TASK-030 初次 Independent Review 曾发现 2 项 IMPORTANT；Focused Fix 完成后 Focused Re-Review 为 `PASS`，两项 IMPORTANT 均已关闭，当前尚未提交。
+TASK-031 已通过最终 Independent Review，最终 Review Result 为 `PASS`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -41,13 +41,15 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: TASK-028 Reviewer 独立验证 318 passed、0 skipped、0 warnings；无 crash-safe exactly-once 保证。
 * Note: TASK-029 Reviewer 独立验证 344 passed、0 skipped、0 warnings；successful ledgered Tool replay 已防止重复执行，但 universal crash-safe exactly-once 仍未保证。
 * Note: TASK-030 最终 PostgreSQL 验证 384 passed、0 skipped、0 warnings；stale recovery、UNKNOWN reconciliation 和 automatic recovery 仍受当前边界约束。
+* Note: TASK-031 最终 PostgreSQL 验证 417 passed、0 skipped、0 warnings；另独立验证 40 structured JSON events、0 sensitive-value hits。
+* Note: telemetry 为 best-effort runtime evidence，不是 durable audit；当前无 metrics backend、distributed tracing backend 或 persistent audit log。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-031 - Observability Foundation`
+* **Task:** `TASK-032 - Project Hardening / Final Validation`
 * **Status:** `Not Started`
 
-TASK-030 已完成 Resume Reliability / Recovery；下一阶段进入 Observability Foundation。当前不开始执行 TASK-031。
+TASK-031 已完成 Observability Foundation；下一阶段进入 Project Hardening / Final Validation。当前不开始执行 TASK-032。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -92,8 +94,9 @@ TASK-030 已完成 Resume Reliability / Recovery；下一阶段进入 Observabil
 * TASK-028 已建立 checkpoint-first pause、`WAITING_APPROVAL → RUNNING` continuation claim、Approval-driven resume、approved Tool continuation 和 cursor-based no-replay；TASK-029 已建立 Execution Ledger、stable execution identity、single-winner claim 与 SUCCEEDED cached replay。
 * TASK-029 的 ledger execution state 与 LangGraph checkpoint、Task/Approval business state 分离；`EXECUTING` / `UNKNOWN` 不触发 blind replay。TASK-030 已建立 operator-triggered recovery 与 evidence-driven reconciliation；background recovery、orphan cleanup、stale RUNNING recovery 与更广泛 cross-store reconciliation 仍属后续能力。
 * TASK-030 已建立 `RECOVERY_REQUIRED`、operator-triggered evidence-driven recovery、single-winner recovery claim、generation fencing、completed Graph reconciliation 及 capability-aware stale ledger recovery；恢复仍不提供 universal crash-safe exactly-once。
+* TASK-031 已建立 framework-neutral structured observability、server-generated request correlation、18 lifecycle events 与 allowlist-based sensitive-data policy；telemetry delivery best-effort，不承担 audit、metrics backend 或 distributed tracing backend 职责。
 
-Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay 与 operator-triggered recovery 已建立，但 background automatic recovery、universal crash-safe exactly-once 与更广泛 reconciliation 仍属于后续任务。
+Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay、operator-triggered recovery 与 structured observability 已建立，但 background automatic recovery、universal crash-safe exactly-once、metrics/tracing backend 与 persistent audit 仍属于后续任务。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

@@ -1,5 +1,6 @@
 """Execution authorized by a persisted Approval, never by a resume boolean."""
 from collections.abc import Callable
+from app.observability import emit
 from uuid import UUID
 
 from app.approvals.models import Approval, ApprovalStatus
@@ -48,6 +49,7 @@ class ApprovedToolExecutionService:
         execution, won = self._executions.claim(candidate)
         if not won:
             return self._replay(execution, candidate)
+        self._observe("tool.execution.claimed", execution, tool=tool)
         return self._execute_claimed(tool, execution)
 
     def _execute_claimed(self, tool, execution):
@@ -72,6 +74,7 @@ class ApprovedToolExecutionService:
         # Never retry Tool or guess FAILED when this write fails.
         self._executions.finish(execution.finish(ExecutionStatus.SUCCEEDED, result_content=result.content),
                                 expected_updated_at=execution.updated_at)
+        self._observe("tool.execution.succeeded", execution, tool=tool, outcome="SUCCEEDED")
         return ToolExecutionResult(tool_call_id=tool_call.id, tool_name=tool_call.name, content=result.content)
 
     def _persist_failure(self, execution, status, code, original):
@@ -81,13 +84,31 @@ class ApprovedToolExecutionService:
         except Exception as persistence_error:
             raise original from persistence_error
 
-    @staticmethod
-    def _replay(execution: ToolExecution, candidate: ToolExecution) -> ToolExecutionResult:
+        self._observe("tool.execution.failed" if status is ExecutionStatus.FAILED else "tool.execution.unknown",
+                      execution, outcome=status.value, error_category=code)
+
+    def _observe(self, name, execution, *, tool=None, outcome=None, error_category=None):
+        try:
+            # Cache hits remain independent of the currently registered Tool schema.
+            try:
+                mode = (tool or self._registry.get(execution.tool_name)).metadata().idempotency_mode.value
+            except Exception:
+                mode = "unavailable"
+            emit(name, component="execution", task_id=execution.task_id, approval_id=execution.approval_id,
+                 execution_id=execution.id, tool_call_id=execution.tool_call_id,
+                 outcome=outcome or execution.status.value,
+                 attributes={"tool_name": execution.tool_name, "idempotency_mode": mode,
+                             "argument_count": len(execution.arguments), "error_category": error_category})
+        except Exception:
+            pass
+
+    def _replay(self, execution: ToolExecution, candidate: ToolExecution) -> ToolExecutionResult:
         if (execution.task_id != candidate.task_id or execution.tool_call_id != candidate.tool_call_id
                 or execution.approval_id != candidate.approval_id or execution.tool_name != candidate.tool_name
                 or canonical_arguments(execution.arguments) != canonical_arguments(candidate.arguments)):
             raise ExecutionIdentityConflict("Execution identity has different authorization or Tool context")
         if execution.status is ExecutionStatus.SUCCEEDED:
+            self._observe("tool.execution.cache_hit", execution)
             return ToolExecutionResult(tool_call_id=execution.tool_call_id,
                 tool_name=execution.tool_name, content=execution.result_content)
         if execution.status is ExecutionStatus.UNKNOWN:

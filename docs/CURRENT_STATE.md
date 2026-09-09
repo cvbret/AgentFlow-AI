@@ -315,8 +315,23 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * missing checkpoint and orphan checkpoint detection established without deletion
 * no background automatic recovery or universal crash-safe exactly-once guarantee
 * 384 passed, 0 failed, 0 skipped, 0 warnings
+* TASK-031 - Observability Foundation
+* TASK-031 review result: PASS
+* framework-neutral ObservabilityEvent / Context / Sink boundary established
+* StructuredLoggingSink JSON structured logs established
+* server-generated request_id and X-Request-ID response propagation established
+* request isolation through ContextVar reset established
+* task_id primary cross-request business correlation established
+* thread_id / approval_id / execution_id / tool_call_id correlation established
+* 18 lifecycle events across Task, Approval, Tool Execution, Workflow, Recovery and LLM reliability established
+* sensitive-data allowlist policy established
+* Tool arguments, results, prompts, messages and raw exception strings excluded by default
+* best-effort telemetry established; sink failure does not affect business semantics
+* event truthfulness respects transaction, generation and commit-uncertainty boundaries
+* no metrics backend, distributed tracing backend or persistent audit log
+* 417 passed, 0 failed, 0 skipped, 0 warnings
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029 和 TASK-030 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029、TASK-030 和 TASK-031 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -333,8 +348,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-031 - Observability Foundation
+TASK-032 - Project Hardening / Final Validation
 
 Status: Not Started
 
-TASK-030 已完成 Resume Reliability / Recovery；下一阶段进入 Observability Foundation。当前不开始执行 TASK-031。
+TASK-031 已完成 Observability Foundation；下一阶段进入 Project Hardening / Final Validation。当前不开始执行 TASK-032。

@@ -440,3 +440,109 @@ facts can still require another operator review. Timestamp claims are short
 optimistic ownership checks, not durable liveness guarantees. The safety of an
 EXTERNAL_KEY/INHERENT replay depends on the Tool/provider honoring that contract.
 No universal exactly-once. No background automatic recovery.
+
+
+## Structured Observability Foundation (TASK-031)
+
+`app.observability` is a framework-neutral boundary with ObservabilityEvent,
+ObservabilityContext, ObservabilitySink, StructuredLoggingSink and a thread-safe
+InMemoryObservabilitySink for tests. Application services emit lifecycle facts;
+repositories do not emit an event for each SQL operation. There is no event table,
+backend exporter, metrics service or persistent audit log.
+
+The version-one envelope always serializes event_name, UTC timestamp, level,
+request_id, task_id, thread_id, approval_id, execution_id, tool_call_id, component,
+outcome and attributes. Unavailable IDs are null. UUID identities serialize as
+strings; ToolCall IDs are bounded identifier tokens. Event names, components and
+outcomes have explicit accepted vocabularies. Events are validated before delivery;
+both provided sinks serialize through the safe event boundary.
+
+### Correlation and request isolation
+
+| Field | Meaning |
+| --- | --- |
+| request_id | One HTTP request or top-level operator invocation |
+| task_id | Primary AgentFlow business identity, stable across requests |
+| thread_id | LangGraph workflow identity; explicitly set at the Runtime boundary |
+| approval_id | Human authorization identity |
+| execution_id | Protected Tool execution UUID, retained across safe recovery |
+| tool_call_id | LLM ToolCall identity |
+
+Task ID and workflow thread ID currently have equal UUID values but distinct
+meanings. Task/Approval-only events need not carry thread_id. A new HTTP request
+gets a server-generated UUID regardless of the client's X-Request-ID. Pure ASGI
+RequestContextMiddleware wraps the complete FastAPI middleware stack, including
+ServerErrorMiddleware, so normal, handled-error and generated 500 responses carry
+X-Request-ID. WebSocket/lifespan scopes pass through without HTTP IDs.
+
+ContextVar holds a frozen correlation context. Each HTTP scope starts fresh and
+resets its token in finally. Nested application/Runtime scopes restore their parent;
+operator service invocations create a request ID only if none exists. Context
+crosses FastAPI worker and LangGraph execution boundaries without storing it in
+business/checkpoint payloads. No traceparent or distributed tracing propagation is
+implemented. Sink injection also uses a scoped ContextVar, allowing independent
+capturing tests without replacing a global mutable sink.
+
+### Event taxonomy and durable boundaries
+
+| Events | Meaning / emission boundary |
+| --- | --- |
+| task.created | PENDING persistence returned successfully |
+| task.state_changed | Accepted, committed lifecycle transition with from_status/to_status |
+| task.completed | Confirmed SUCCEEDED, FAILED or REJECTED transition |
+| approval.requested | Approval INSERT + generation-fenced WAITING_APPROVAL update committed |
+| approval.decided | Atomic decision/Task claim or rejection committed, before resume dispatch |
+| tool.execution.claimed | Normal or recovery ledger claim committed, before Tool execution |
+| tool.execution.cache_hit | Authorized identity match reuses durable SUCCEEDED content |
+| tool.execution.succeeded / failed / unknown | Terminal ledger write returned successfully |
+| workflow.paused | Runtime received the graph interrupt after synchronous checkpoint writes |
+| workflow.resumed | Authorized resume dispatch begins; not proof of eventual completion |
+| recovery.started / completed | One operator invocation and its classification, or safe failed outcome |
+| llm.request.started / succeeded / failed | One numbered attempt; success includes response validation |
+| llm.retry.scheduled | Retry decision with the exact calculated delay before the existing sleep |
+
+`task.state_changed` covers start rather than adding a redundant task.started.
+RUNNING, WAITING_APPROVAL, SUCCEEDED, FAILED, REJECTED and RECOVERY_REQUIRED remain
+observable. Recovery ownership claims can produce RUNNING -> RUNNING with a newer
+business generation; this is not a second execution authorization mechanism.
+
+Events follow acknowledged commits, never stage_save or an unaccepted conditional
+write. Losing Task ownership emits no false success/failure/pause state transition.
+A rollback emits no committed Approval request. A result-commit acknowledgement
+loss may leave no success event even though the database committed; later recovery
+can emit cache_hit based on fresh truth. Telemetry is neither a commit witness nor
+a substitute for the Task/Approval/Execution/checkpoint sources of truth. There is
+no atomic business-commit/event-delivery guarantee or global total ordering.
+
+LLM events include configured model, one-based attempt, max_attempts and retryable
+where relevant; scheduled retries include delay_seconds. Parsing is kept inside
+the observable attempt, so invalid JSON/schema responses emit failed without a
+success event and remain non-retryable. The existing retry count, exception contract,
+exponential backoff, jitter calculation and sleep values are preserved.
+
+### Safe attributes and best-effort delivery
+
+Attributes use an allowlist with type/value checks, not a search for suspicious
+keys. Allowed metadata: model, tool_name, idempotency_mode, argument_count,
+from_status, to_status, status, decision, attempt, max_attempts, retryable,
+delay_seconds, exception_type and fixed error_category. Unknown keys, nested payloads,
+nonfinite numbers and non-serializable objects are dropped. String metadata is
+bounded and constrained; identity/name fields must be content-free identifiers.
+Never repurpose an allowed model/name/ID field to carry user content.
+
+Defaults exclude Tool argument values and even argument_keys (keys can contain
+sensitive text), Tool results, external bodies, raw checkpoints, HTTP bodies,
+messages/prompts/document content, API keys, headers/cookies, base URLs and raw
+exception strings. No ORM objects, Sessions, Tools or clients enter events.
+The complete attributes dictionary is copied and sanitized; JSON output revalidates
+it to prevent mutation from bypassing this policy. Arbitrary model_dump/payload
+dictionaries are not valid telemetry contracts.
+
+StructuredLoggingSink uses Python logging with a dedicated INFO logger and a
+message-only StreamHandler: one event per JSON line, parseable with json.loads.
+It does not reconfigure application/root logging. The emit boundary catches event
+construction, serialization and sink failures without recursive fallback logging
+or changing business state/results. Delivery is synchronous and best-effort;
+there is no durable delivery, bounded sink latency, background worker or retention.
+Future sinks must preserve privacy and failure isolation; an OTel sink/backend is
+not part of this implementation.

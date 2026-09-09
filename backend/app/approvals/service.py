@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from app.observability import emit, task_changed, observation_context
 from typing import Literal
 from uuid import UUID
 
@@ -35,26 +36,31 @@ class ApprovalDecisionService:
         self._resume = resume
 
     def decide(self, approval_id: UUID, decision: Literal["approve", "reject"]) -> Approval:
-        if decision not in ("approve", "reject"):
-            raise ValueError("Unknown Approval decision")
-        approval = self._approvals.get_by_id(approval_id)
-        if approval is None:
-            raise ApprovalNotFoundError("Approval not found.")
-        if approval.status is not ApprovalStatus.PENDING:
-            raise ApprovalDecisionConflictError("Approval is no longer pending.")
-        task = self._tasks.get(approval.task_id)
-        if task is None or task.status is not TaskStatus.WAITING_APPROVAL:
-            raise ApprovalTaskContextError("Approval Task is not waiting for approval.")
-        if decision == "approve":
-            approval.approve()
-            task.resume_approved()
-            accepted = self._continuation.save(approval, task)
-        else:
-            approval.reject()
-            task.mark_rejected()
-            accepted = self._rejection.save(approval, task)
-        if not accepted:
-            raise ApprovalDecisionConflictError("Approval decision was not accepted.")
-        if decision == "approve" and self._resume is not None:
-            self._resume(task.id, approval.id)
-        return approval
+        with observation_context(invocation=True, approval_id=approval_id):
+            if decision not in ("approve", "reject"):
+                raise ValueError("Unknown Approval decision")
+            approval = self._approvals.get_by_id(approval_id)
+            if approval is None:
+                raise ApprovalNotFoundError("Approval not found.")
+            if approval.status is not ApprovalStatus.PENDING:
+                raise ApprovalDecisionConflictError("Approval is no longer pending.")
+            task = self._tasks.get(approval.task_id)
+            if task is None or task.status is not TaskStatus.WAITING_APPROVAL:
+                raise ApprovalTaskContextError("Approval Task is not waiting for approval.")
+            if decision == "approve":
+                approval.approve()
+                task.resume_approved()
+                accepted = self._continuation.save(approval, task)
+            else:
+                approval.reject()
+                task.mark_rejected()
+                accepted = self._rejection.save(approval, task)
+            if not accepted:
+                raise ApprovalDecisionConflictError("Approval decision was not accepted.")
+            emit("approval.decided", component="approval", task_id=task.id, approval_id=approval.id,
+                 tool_call_id=approval.tool_call_id, outcome=approval.status.value,
+                 attributes={"tool_name": approval.tool_name, "decision": decision, "status": approval.status.value})
+            task_changed(task, TaskStatus.WAITING_APPROVAL, component="approval")
+            if decision == "approve" and self._resume is not None:
+                self._resume(task.id, approval.id)
+            return approval

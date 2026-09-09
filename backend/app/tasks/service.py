@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from app.observability import emit, task_changed, observation_context
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -48,49 +49,56 @@ class TaskExecutionService:
 
     def execute(self, task_input: str) -> Task:
         task = Task(input=task_input)
-        self._repository.save(task)
+        with observation_context(invocation=True, task_id=task.id):
+            self._repository.save(task)
+            emit("task.created", component="task", task_id=task.id, outcome="PENDING")
 
-        task.start()
-        self._repository.save(task)
+            task.start()
+            self._repository.save(task)
+            task_changed(task, TaskStatus.PENDING)
 
-        return self.continue_running(task, lambda: self._runtime_provider().run(
-            [ChatMessage(role="user", content=task_input)], task_id=task.id))
+            return self.continue_running(task, lambda: self._runtime_provider().run(
+                [ChatMessage(role="user", content=task_input)], task_id=task.id))
 
     def continue_running(self, task: Task, invoke: Callable[[], AgentResult]) -> Task:
-        expected = Task.restore(**task.model_dump())
-        if expected.status is not TaskStatus.RUNNING:
-            raise TaskError("Continuation requires a RUNNING Task")
-        try:
+        with observation_context(invocation=True, task_id=task.id):
+            expected = Task.restore(**task.model_dump())
+            if expected.status is not TaskStatus.RUNNING:
+                raise TaskError("Continuation requires a RUNNING Task")
             try:
-                result = invoke()
-            except ApprovalRequired as signal:
-                waiting_task = Task.restore(**task.model_dump())
-                waiting_task.mark_waiting_approval()
-                self._pause_persistence.save(waiting_task, signal.approval, expected=expected)
-                return waiting_task
-        except (TaskOwnershipLost, ExecutionPersistenceUncertain):
-            # Never guess FAILED or overwrite a new owner. Fresh recovery reads truth.
-            raise
-        except (ToolExecutionOutcomeUnknown, ExecutionReplayBlocked) as exc:
-            task.require_recovery()
-            try:
-                self._repository.reconcile_if_unchanged(task, expected)
-            except SQLAlchemyError as persistence_error:
-                raise exc from persistence_error
-            raise
-        except Exception as exc:
-            task.fail(
-                _SAFE_EXECUTION_ERROR_MESSAGES.get(type(exc), "Agent execution failed.")
-            )
-            try:
-                # Zero rows does not confirm any particular durable state.
-                # Preserve the original error regardless of whether FAILED won.
-                self._repository.save_failed_if_running(task, expected)
-            except SQLAlchemyError as persistence_error:
-                raise exc from persistence_error
-            raise
+                try:
+                    result = invoke()
+                except ApprovalRequired as signal:
+                    waiting_task = Task.restore(**task.model_dump())
+                    waiting_task.mark_waiting_approval()
+                    self._pause_persistence.save(waiting_task, signal.approval, expected=expected)
+                    return waiting_task
+            except (TaskOwnershipLost, ExecutionPersistenceUncertain):
+                # Never guess FAILED or overwrite a new owner. Fresh recovery reads truth.
+                raise
+            except (ToolExecutionOutcomeUnknown, ExecutionReplayBlocked) as exc:
+                task.require_recovery()
+                try:
+                    if self._repository.reconcile_if_unchanged(task, expected):
+                        task_changed(task, expected.status)
+                except SQLAlchemyError as persistence_error:
+                    raise exc from persistence_error
+                raise
+            except Exception as exc:
+                task.fail(
+                    _SAFE_EXECUTION_ERROR_MESSAGES.get(type(exc), "Agent execution failed.")
+                )
+                try:
+                    # Zero rows does not confirm any particular durable state.
+                    # Preserve the original error regardless of whether FAILED won.
+                    if self._repository.save_failed_if_running(task, expected):
+                        task_changed(task, expected.status)
+                except SQLAlchemyError as persistence_error:
+                    raise exc from persistence_error
+                raise
 
-        task.succeed(result.content)
-        if not self._repository.reconcile_if_unchanged(task, expected):
-            raise TaskOwnershipLost("Success lost its RUNNING generation")
-        return task
+            task.succeed(result.content)
+            if not self._repository.reconcile_if_unchanged(task, expected):
+                raise TaskOwnershipLost("Success lost its RUNNING generation")
+            task_changed(task, expected.status)
+            return task

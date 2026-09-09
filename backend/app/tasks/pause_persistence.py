@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from app.observability import emit, task_changed
 
 from app.approvals.models import Approval
 from app.approvals.repository import ApprovalRepository
@@ -27,6 +28,10 @@ class HITLPausePersistence:
                 raise TaskOwnershipLost("Pause lost its RUNNING generation")
             self._session.flush()
             self._session.commit()
+            emit("approval.requested", component="approval", task_id=task.id,
+                 approval_id=approval.id, tool_call_id=approval.tool_call_id, outcome="PENDING",
+                 attributes={"tool_name": approval.tool_name, "status": approval.status.value})
+            task_changed(task, expected.status)
         except Exception as exc:
             try:
                 self._session.rollback()

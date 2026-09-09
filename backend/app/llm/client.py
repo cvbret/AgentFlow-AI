@@ -1,3 +1,4 @@
+from app.observability import emit, observation_context
 import json
 import random
 import time
@@ -73,8 +74,10 @@ class LLMClient:
             "Content-Type": "application/json",
         }
 
-        response = self._request_with_retry(headers=headers, payload=payload)
+        with observation_context(invocation=True):
+            return self._request_with_retry(headers=headers, payload=payload)
 
+    def _parse_response(self, response: httpx.Response) -> LLMResponse:
         try:
             data: Any = response.json()
         except ValueError as exc:
@@ -114,15 +117,34 @@ class LLMClient:
         *,
         headers: dict[str, str],
         payload: dict[str, Any],
-    ) -> httpx.Response:
+    ) -> LLMResponse:
         for attempt in range(self._settings.llm_max_attempts):
+            metadata = {"model": self._settings.llm_model, "attempt": attempt + 1,
+                        "max_attempts": self._settings.llm_max_attempts}
+            emit("llm.request.started", component="llm", outcome="started", attributes=metadata)
             try:
-                return self._request_once(headers=headers, payload=payload)
+                response = self._request_once(headers=headers, payload=payload)
+                result = self._parse_response(response)
             except LLMProviderError as exc:
+                emit("llm.request.failed", component="llm", outcome="failed", level="WARNING",
+                     attributes={**metadata, "retryable": exc.retryable,
+                                 "exception_type": type(exc).__name__, "error_category": "provider"})
                 if not exc.retryable or attempt + 1 >= self._settings.llm_max_attempts:
                     raise
                 retry_index = attempt
-                self._sleep_fn(self._calculate_retry_delay(retry_index))
+                delay = self._calculate_retry_delay(retry_index)
+                emit("llm.retry.scheduled", component="llm", outcome="scheduled",
+                     attributes={**metadata, "retryable": True, "delay_seconds": delay})
+                self._sleep_fn(delay)
+            except Exception as exc:
+                emit("llm.request.failed", component="llm", outcome="failed", level="WARNING",
+                     attributes={**metadata, "retryable": False, "exception_type": type(exc).__name__,
+                                 "error_category": "invalid_response" if isinstance(exc, InvalidLLMResponseError) else "unexpected"})
+                raise
+            else:
+                emit("llm.request.succeeded", component="llm", outcome="succeeded",
+                     attributes={**metadata, "retryable": False})
+                return result
 
         raise AssertionError("LLM retry loop exited without a response or error")
 

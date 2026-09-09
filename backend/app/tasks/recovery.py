@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from app.observability import emit, task_changed, observation_context
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 import math
@@ -48,7 +49,10 @@ class TaskRecoveryService:
 
     def _persist(self, candidate: Task, expected: Task) -> bool:
         with self._sessions() as session:
-            return TaskRepository(session).reconcile_if_unchanged(candidate, expected)
+            accepted = TaskRepository(session).reconcile_if_unchanged(candidate, expected)
+        if accepted:
+            task_changed(candidate, expected.status, component="recovery")
+        return accepted
 
     def _required(self, task: Task, *, orphan=False) -> RecoveryResult:
         if task.status in (TaskStatus.RUNNING, TaskStatus.WAITING_APPROVAL):
@@ -60,6 +64,18 @@ class TaskRecoveryService:
                                                        else RecoveryOutcome.RECOVERY_REQUIRED))
 
     def recover(self, task_id: UUID) -> RecoveryResult:
+        with observation_context(invocation=True, task_id=task_id):
+            emit("recovery.started", component="recovery", outcome="started")
+            try:
+                result = self._recover(task_id)
+            except Exception as exc:
+                emit("recovery.completed", component="recovery", outcome="failed", level="ERROR",
+                     attributes={"exception_type": type(exc).__name__, "error_category": "unexpected"})
+                raise
+            emit("recovery.completed", component="recovery", outcome=result.outcome.value)
+            return result
+
+    def _recover(self, task_id: UUID) -> RecoveryResult:
         def result(outcome):
             return RecoveryResult(task_id=task_id, outcome=outcome)
         with self._sessions() as session:

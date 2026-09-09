@@ -302,3 +302,61 @@ Before background recovery, long-running ownership or more general graph replay,
 design actor liveness, stronger fencing/leases if needed, operator access policies,
 external outcome reconciliation and retention explicitly. Do not reinterpret
 RECOVERY_REQUIRED as permission to force an operation.
+
+
+## ADR-009 - Safe structured lifecycle observability with scoped correlation
+
+**Status:** Accepted; final Independent Review validated.
+
+### Context
+
+Task, Approval, protected Tool execution, workflow checkpoints and operator recovery
+have independent durable boundaries. A single request does not encompass their
+lifetime, and raw logs/payloads would expose business content without establishing
+reliable correlation. Observability must not change their failure or transaction
+contracts.
+
+### Decision
+
+- Add a framework-neutral ObservabilityEvent/Context/Sink boundary. Emit 18 stable
+  lifecycle event names at application/Runtime/LLM boundaries, using a validated
+  JSON envelope. Keep persistence implementations free of per-SQL business events.
+- Treat task_id as primary business correlation; retain independent semantic
+  fields for request, workflow thread, Approval, execution UUID and ToolCall.
+  Equal Task/thread values do not make them the same identity concept.
+- Generate a server UUID for each HTTP request and expose X-Request-ID, including
+  error responses. Never trust a caller ID as system identity. Use scoped,
+  finally-reset ContextVars; generate one ID for top-level operator invocations.
+- Emit committed lifecycle changes only after acknowledged writes/accepted CAS.
+  Preserve approval atomicity, execution generations and retry timing. Workflow
+  resume events identify authorized dispatch, not completed execution.
+- Use a metadata allowlist with constrained scalar values. Exclude payload values,
+  argument keys, content, secrets, credentials, raw exceptions and checkpoints.
+  Exception type/category is sufficient. JSON serialization rechecks the policy.
+- Default to a dedicated standard-logging JSON sink. Catch construction/emission
+  failures at the best-effort boundary, with no recursive fallback and no effect
+  on business operations. Provide a scoped in-memory sink for tests only.
+
+### Consequences
+
+Cross-request approval/resume can be understood through stable business IDs while
+request IDs remain isolated, including concurrent requests and workflow workers.
+Sensitive-value and broken-sink tests exercise complete application paths. LLM
+attempt events distinguish provider/retry failures and invalid responses without
+changing the retry/backoff contract.
+
+This is observability, not immutable audit. Events may be lost after a commit or
+on sink failure; no global ordering or atomic delivery is promised. Synchronous
+sinks may add latency. Metadata names/IDs must remain content-free identifiers;
+the sanitizer cannot infer secrets intentionally placed in an allowed identifier.
+Existing Python/framework logging remains separate from these structured events.
+No metrics backend, distributed tracing backend, persistent audit event table,
+exporter, retention, alerting or telemetry worker is installed. No migration or
+new external dependency is required.
+
+### Revisit Trigger
+
+Before adding a production telemetry backend or cross-service propagation, define
+exporter timeouts/buffering, trust boundaries, privacy review and operational
+retention explicitly. Persistent audit requirements need a separate design and
+must not infer durable audit guarantees from this sink interface.
