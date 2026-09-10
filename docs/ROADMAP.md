@@ -69,7 +69,13 @@ TASK-032：Project Hardening & End-to-End Validation 已完成。
 
 TASK-033：Container & CI Delivery Qualification 已完成。
 
-下一阶段：TASK-034 - Final Project Packaging。
+TASK-034：Final Project Packaging 已完成。
+
+AgentFlow-AI Core Project = Completed / Finalized。
+
+主开发 roadmap 在 TASK-034 结束，不设置 TASK-035，也不存在 active next Task。
+
+Optional Future Work：Deployment Qualification、Real Provider Validation、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、Multi-Agent、MCP。
 
 ## Phase 6 - Observability / 可观测性
 
@@ -80,7 +86,7 @@ TASK-033：Container & CI Delivery Qualification 已完成。
 
 TASK-032 已完成 application-level release qualification；Docker delivery、CI automation 与 deployment qualification 尚未完成。
 
-TASK-033 已完成 Container Delivery qualification 与 CI workflow local independent reproduction；hosted CI evidence 与 Deployment Qualification 仍待完成。
+TASK-033 已完成 Container Delivery qualification 与 GitHub-hosted CI qualification；Deployment Qualification 仍待完成。
 
 ## Phase 7 - Human in the Loop / 人在回路
 

@@ -14,9 +14,9 @@ AgentFlow-AI 面向企业级后端场景，目标不是提供一个只能进行�
 
 ## Core Capabilities / 核心能力
 
-The following capabilities define the intended product and engineering direction. They are not all implemented in the current phase.
+The following capabilities describe the completed core project and explicitly retained future directions. Current qualification is maintained in `docs/CURRENT_STATE.md`.
 
-以下能力定义项目的长期方向，但并不表示当前已经全部实现：
+以下能力覆盖已完成的核心项目与明确保留的未来方向；当前 qualification 以 `docs/CURRENT_STATE.md` 为准。
 
 ### Task Execution / 任务执行
 
@@ -46,7 +46,7 @@ Coordinate the repeated `LLM → Tool → Result → LLM` interaction and stop w
 
 Represent lifecycle states such as `pending`, `running`, `completed`, `failed`, and `waiting_for_approval`.
 
-中文释义：状态让系统知道任务现在处于哪个阶段，也让 API、恢复机制和审计记录拥有共同依据。当前项目尚未实现持久化状态层。
+中文释义：状态让系统知道任务现在处于哪个阶段，也让 API、恢复机制和审计记录拥有共同依据。当前项目已实现 Task Domain、PostgreSQL 持久化、查询、审批暂停、继续执行与恢复边界。
 
 ### Execution History / 执行历史
 
@@ -76,7 +76,7 @@ Pause for human approval before dangerous, irreversible, or business-critical ac
 
 Provide structured logs, traces, metrics, and audit information sufficient to explain runtime behavior.
 
-中文释义：可观测性不是附加装饰，而是企业系统判断稳定性和定位故障的基础。系统应逐步回答执行耗时、步骤数量、工具调用和失败原因。
+中文释义：可观测性不是附加装饰，而是判断稳定性和定位故障的基础。当前已实现结构化生命周期事件、关联 ID 和敏感数据保护；metrics、distributed tracing backend 与 persistent audit 仍属未来方向。
 
 ### Multi-agent Collaboration / 多 Agent 协作
 
@@ -97,7 +97,7 @@ V1 focuses only on the minimum core runtime:
 * unit testing
 * integration testing
 
-中文释义：V1 的目的，是先建立可运行、可测试、边界清晰的 Agent 后端闭环。`basic task state` 表示最小状态模型；完整的持久化任务生命周期属于后续阶段。
+中文释义：V1 的目的，是建立可运行、可测试、边界清晰的 Agent 后端闭环；当前核心项目已进一步完成持久化任务生命周期、HITL、恢复、交付 qualification 与最终文档打包。
 
 ## Non-Goals for V1 / V1 暂不实现
 
@@ -130,7 +130,7 @@ V1 explicitly does not include:
 
 4. **Persistent state must have a clearly defined source of truth.**
 
-   Future durable task state and execution history are expected to use PostgreSQL; Redis may serve cache, temporary state, or locks. Redis must not be the only source of truth for durable Agent tasks。
+   Durable task state and Execution Ledger use PostgreSQL as the business source of truth; Redis may serve cache, temporary state, or locks. Redis must not be the only source of truth for durable Agent tasks。
 
 5. **Agent execution must have bounded loops and failure handling.**
 

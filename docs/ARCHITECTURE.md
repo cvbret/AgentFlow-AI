@@ -2,9 +2,9 @@
 
 ## Current Logical Architecture / 当前逻辑架构
 
-This document describes the current target architecture for Phase 1. It records boundaries that are useful now; it does not claim that every component has already been implemented.
+This document describes the current implemented architecture and the enduring boundaries for Phase 1. It records remaining optional boundaries without claiming future capabilities are already implemented.
 
-本文记录 Phase 1 当前需要遵守的逻辑边界，不把未来所有设想当成现有实现。
+本文记录 Phase 1 当前已实现的逻辑架构与必须遵守的边界；仍将未来可选能力与现有实现区分开来。
 
 ```text
 Client
@@ -102,13 +102,13 @@ TASK-023 路径为 `TaskExecutionService → AgentRuntime.run(task_id) → Prote
 
 任一写入或 commit 失败时回滚整个 pause transaction；原 Domain Task 仍为 RUNNING，随后合法进入 FAILED 并单独 best-effort 保存。失败持久化使用单条带 `id` 与 `status=RUNNING` 条件的 UPDATE，仅 durable state 仍是 RUNNING 才更新为 FAILED。若 commit 已成功但确认丢失，更新零行，保留 WAITING_APPROVAL；零行不代表已确认暂停成功。FAILED 保存本身也可能失败，原始错误继续传播；不返回伪造的 waiting 成功。Standalone Repository create/save 继续拥有 commit，新增 staging 方法不 commit。详见 ADR-003 / TD-006。
 
-`POST /api/agent/run` 返回 `task_id + status + answer`，其中 status 为 `succeeded` 或 `waiting_approval`，暂停时 answer 为 null。Task 查询与过滤支持小写 `waiting_approval`。TASK-024 已实现 Approval decision API（见下节）；当前未实现 resume、approved Tool execution 或 idempotency。`ProtectedToolExecutionService` 与 `ToolExecutor` 当前存在无状态且语义一致的 double policy evaluation，暂不为此扩大架构范围。
+`POST /api/agent/run` 返回 `task_id + status + answer`，其中 status 为 `succeeded` 或 `waiting_approval`，暂停时 answer 为 null。Task 查询与过滤支持小写 `waiting_approval`。TASK-024 建立 Approval decision API；后续 TASK-028/029/030 已建立 approved Tool resume、Execution Ledger 与 operator-triggered recovery。`ProtectedToolExecutionService` 与 `ToolExecutor` 当前存在无状态且语义一致的 double policy evaluation，暂不为此扩大架构范围。
 
 ## State Layer / 状态层
 
-**Current status: durable task state persistence implemented.**
+**Current status: durable task state, protected resume, Execution Ledger, recovery and structured observability implemented.**
 
-中文释义：当前仓库已通过 `TaskRepository` 和 PostgreSQL 实现 durable task state；执行历史仍未实现。
+中文释义：当前仓库已通过 `TaskRepository`、Execution Ledger、Recovery Service 和 PostgreSQL 实现 durable task execution；持久化 audit log、metrics backend 与 distributed tracing backend 仍未实现。
 
 The Task Service persists the task lifecycle through:
 
@@ -116,9 +116,9 @@ The Task Service persists the task lifecycle through:
 
 `TaskExecutionService` coordinates this lifecycle with the Agent Runtime. Each API request uses a request-scoped SQLAlchemy Session.
 
-The expected future responsibility is:
+Current responsibility and remaining boundary are:
 
-* **PostgreSQL:** durable task state and the durable source of truth; execution history remains future scope.
+* **PostgreSQL:** durable task state and the durable source of truth; persistent audit history remains future scope.
 * **Redis:** cache, temporary state, and locks.
 
 Redis must not be the only source of truth for a durable Agent Task.
