@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from app.core.config import ConfigurationError, Settings, get_settings
 from app.llm.schemas import ChatMessage, LLMResponse, ToolCall

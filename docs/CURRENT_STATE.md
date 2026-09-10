@@ -330,8 +330,23 @@ Establish the project foundation and complete the first runnable FastAPI backend
 * event truthfulness respects transaction, generation and commit-uncertainty boundaries
 * no metrics backend, distributed tracing backend or persistent audit log
 * 417 passed, 0 failed, 0 skipped, 0 warnings
+* TASK-032 - Project Hardening & End-to-End Validation
+* TASK-032 review result: PASS WITH NOTES
+* Application Core = PASS
+* Engineering Reproducibility = PASS
+* Plain Assistant, Safe Tool, Protected HITL Approve/Reject and Cached Replay E2E verified
+* stale recovery, UNKNOWN fail-closed behavior and completed checkpoint reconciliation verified
+* cross-request observability correlation and zero sensitive marker leakage verified
+* Alembic business schema and LangGraph checkpoint schema ownership hardened
+* invalid ToolCall restored to safe HTTP 502 / Task FAILED behavior
+* fresh Python 3.11 venv and PostgreSQL 17 reproducibility verified
+* 432 passed, 0 failed, 0 skipped, 0 warnings
+* Container Delivery = Not Yet Qualified
+* CI Automation = Not Yet Qualified
+* Deployment Qualification = Not Yet Qualified
+* application-level release qualification completed; delivery automation and deployment qualification remain pending
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029、TASK-030 和 TASK-031 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029、TASK-030、TASK-031 和 TASK-032 已经过实现、测试及 Independent Review 验证。
 
 ## In Progress / 进行中
 
@@ -348,8 +363,8 @@ None currently confirmed.
 
 ## Next / 下一步
 
-TASK-032 - Project Hardening / Final Validation
+TASK-033 - Container & CI Delivery Qualification
 
 Status: Not Started
 
-TASK-031 已完成 Observability Foundation；下一阶段进入 Project Hardening / Final Validation。当前不开始执行 TASK-032。
+TASK-032 已完成 application-level release qualification；下一阶段进入 Container & CI Delivery Qualification。当前不开始执行 TASK-033。

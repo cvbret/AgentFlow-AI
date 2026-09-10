@@ -65,7 +65,9 @@ LangGraph evaluation was intentionally deferred until an actual workflow-orchest
 
 TASK-031：Observability Foundation 已完成。
 
-下一阶段：TASK-032 - Project Hardening / Final Validation。
+TASK-032：Project Hardening & End-to-End Validation 已完成。
+
+下一阶段：TASK-033 - Container & CI Delivery Qualification。
 
 ## Phase 6 - Observability / 可观测性
 
@@ -73,6 +75,8 @@ TASK-031：Observability Foundation 已完成。
 * tracing backend remains future capability
 * metrics backend remains future capability
 * persistent audit history remains future capability
+
+TASK-032 已完成 application-level release qualification；Docker delivery、CI automation 与 deployment qualification 尚未完成。
 
 ## Phase 7 - Human in the Loop / 人在回路
 

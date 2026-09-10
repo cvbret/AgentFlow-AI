@@ -546,3 +546,15 @@ or changing business state/results. Delivery is synchronous and best-effort;
 there is no durable delivery, bounded sink latency, background worker or retention.
 Future sinks must preserve privacy and failure isolation; an OTel sink/backend is
 not part of this implementation.
+
+## Migration qualification boundary (TASK-032)
+
+Alembic autogeneration/check excludes only reflected tables owned by PostgresSaver:
+checkpoints, checkpoint_blobs, checkpoint_writes and checkpoint_migrations. These
+remain initialized by explicit `python -m app.workflows.setup`; their DDL is not
+copied into historical/new AgentFlow migrations. The exclusion applies only when
+no corresponding business metadata table exists. Unexpected tables and business
+column drift still cause `alembic check` to fail, including unknown tables whose
+names start with checkpoint_. Upgrade/downgrade of business migrations does not
+own or delete the framework tables. Future PostgresSaver schema changes require
+reviewing this explicit ownership list.

@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-031 - Observability Foundation`
-* **Review Result:** `PASS`
-* **Summary:** framework-neutral structured observability foundation; request/task/workflow/approval/execution/tool-call correlation; server-generated request IDs; 18 lifecycle events; sensitive-data allowlist; LLM retry/recovery visibility; transaction/generation truthfulness; best-effort telemetry isolation; no metrics backend, distributed tracing backend or persistent audit log; 417 passed, 0 skipped, 0 warnings
+* **Task:** `TASK-032 - Project Hardening & End-to-End Validation`
+* **Review Result:** `PASS WITH NOTES`
+* **Summary:** application-level release qualification passed; fresh-environment reproducibility passed; 432 PostgreSQL tests passed; protected HITL/recovery/idempotency/observability E2E validated; Alembic/LangGraph schema ownership hardened; invalid ToolCall 502 contract restored; Docker delivery not yet qualified; CI not yet qualified; deployment not yet qualified
 * **Git commit:** `Pending commit`
 
-TASK-031 已通过最终 Independent Review，最终 Review Result 为 `PASS`，当前尚未提交。
+TASK-032 已通过最终 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -43,13 +43,15 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: TASK-030 最终 PostgreSQL 验证 384 passed、0 skipped、0 warnings；stale recovery、UNKNOWN reconciliation 和 automatic recovery 仍受当前边界约束。
 * Note: TASK-031 最终 PostgreSQL 验证 417 passed、0 skipped、0 warnings；另独立验证 40 structured JSON events、0 sensitive-value hits。
 * Note: telemetry 为 best-effort runtime evidence，不是 durable audit；当前无 metrics backend、distributed tracing backend 或 persistent audit log。
+* Note: TASK-032 初次 venv bootstrap 曾因未预先重定向 TEMP/TMP 使用 `C:\WINDOWS\TEMP`；后续已切换 repo-local TEMP/TMP，事件已记录于 `docs/PROCESS_INCIDENTS.md`，属于 NOTE 而非 product defect。
+* Note: TASK-032 Application Core 与 Engineering Reproducibility 已通过；Container Delivery、CI Automation、Deployment Qualification 尚未通过 qualification。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-032 - Project Hardening / Final Validation`
+* **Task:** `TASK-033 - Container & CI Delivery Qualification`
 * **Status:** `Not Started`
 
-TASK-031 已完成 Observability Foundation；下一阶段进入 Project Hardening / Final Validation。当前不开始执行 TASK-032。
+TASK-032 已完成 application-level release qualification；下一阶段进入 Container & CI Delivery Qualification。当前不开始执行 TASK-033。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -95,8 +97,9 @@ TASK-031 已完成 Observability Foundation；下一阶段进入 Project Hardeni
 * TASK-029 的 ledger execution state 与 LangGraph checkpoint、Task/Approval business state 分离；`EXECUTING` / `UNKNOWN` 不触发 blind replay。TASK-030 已建立 operator-triggered recovery 与 evidence-driven reconciliation；background recovery、orphan cleanup、stale RUNNING recovery 与更广泛 cross-store reconciliation 仍属后续能力。
 * TASK-030 已建立 `RECOVERY_REQUIRED`、operator-triggered evidence-driven recovery、single-winner recovery claim、generation fencing、completed Graph reconciliation 及 capability-aware stale ledger recovery；恢复仍不提供 universal crash-safe exactly-once。
 * TASK-031 已建立 framework-neutral structured observability、server-generated request correlation、18 lifecycle events 与 allowlist-based sensitive-data policy；telemetry delivery best-effort，不承担 audit、metrics backend 或 distributed tracing backend 职责。
+* TASK-032 完成 application-level release qualification 与 fresh-environment reproducibility；当前无 application Dockerfile/compose、`.github/workflows` 或 target deployment qualification，因此不得表述为 production-ready。
 
-Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay、operator-triggered recovery 与 structured observability 已建立，但 background automatic recovery、universal crash-safe exactly-once、metrics/tracing backend 与 persistent audit 仍属于后续任务。
+Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay、operator-triggered recovery 与 structured observability 已建立。TASK-032 的 application-level qualification 已完成，但 Docker/CI/deployment qualification、background automatic recovery、universal crash-safe exactly-once、metrics/tracing backend 与 persistent audit 仍属于后续任务。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 
@@ -189,6 +192,8 @@ Task Definition
 * `TD-003` — LLM HTTP timeout is not explicitly configured (Closed by TASK-014)
 * `TD-004` — Calculator accepts non-finite and boolean numeric inputs
 * `TD-005` — Alembic configuration coupled to LLM application settings
+
+Docker、CI 与 deployment qualification 是 Remaining Release Gap / Planned Finalization Capability，不是新的 Technical Debt。
 
 这里只做摘要；详细信息仍以 `docs/TECH_DEBT.md` 为 Source of Truth。
 
