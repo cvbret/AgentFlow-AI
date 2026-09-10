@@ -1,0 +1,22 @@
+# Allow only delivery inputs; local environments/secrets never enter context.
+**
+!backend/
+!backend/requirements.txt
+!backend/alembic.ini
+!backend/container-entrypoint.sh
+!backend/app/
+!backend/app/**
+!backend/alembic/
+!backend/alembic/**
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.*
+**/*.log
+**/*.pem
+**/*.key
+**/secrets/
+**/venv/
+**/.venv/
+**/.git/
+**/.pytest_cache/

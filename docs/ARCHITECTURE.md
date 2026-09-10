@@ -558,3 +558,18 @@ column drift still cause `alembic check` to fail, including unknown tables whose
 names start with checkpoint_. Upgrade/downgrade of business migrations does not
 own or delete the framework tables. Future PostgresSaver schema changes require
 reviewing this explicit ownership list.
+
+
+## Container and CI delivery boundary (TASK-033)
+
+Compose gates backend startup on PostgreSQL health. The container entrypoint runs
+the existing Alembic and PostgresSaver initialization commands sequentially before
+execing Uvicorn as a non-root user. Initialization failures exit nonzero; FastAPI
+import/lifespan retains its existing no-DDL contract. Repeated startup preserves
+the separate schema ownership described above. This is a single-backend development
+stack, not a multi-replica migration coordination or deployment architecture.
+
+The HTTP health check establishes liveness after initialization, not continuing
+DB/provider health. CI uses a separate PostgreSQL service and the same schema owner
+commands, a zero-skips/zero-warnings pytest gate, and image build. Hosted CI evidence
+and target deployment qualification remain separate release gates (ADR-010).

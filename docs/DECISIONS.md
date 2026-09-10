@@ -360,3 +360,37 @@ Before adding a production telemetry backend or cross-service propagation, defin
 exporter timeouts/buffering, trust boundaries, privacy review and operational
 retention explicitly. Persistent audit requirements need a separate design and
 must not infer durable audit guarantees from this sink interface.
+
+
+## ADR-010 - Explicit container initialization and delivery qualification gates
+
+**Status:** Accepted; final Independent Review validated.
+
+### Context
+
+Business migrations and framework checkpoints have independent owners. Container
+startup must make both available without changing Runtime or API initialization.
+A local green test run is not evidence of a hosted CI run or production deployment.
+
+### Decision
+
+Use a Python 3.11 non-root backend image and PostgreSQL 17 Compose service. Compose
+waits for DB health; an explicit entrypoint sequentially runs Alembic upgrade head
+and the existing PostgresSaver setup CLI before execing Uvicorn. Each failed phase
+returns nonzero with a safe phase message. Keep schema DDL out of FastAPI lifecycle
+and do not duplicate framework migrations. Use an HTTP liveness healthcheck.
+
+CI initializes a disposable PostgreSQL service with the same commands, runs all
+pytest tests with a gate rejecting skips and warnings, and builds the image.
+Use runtime environment credentials only; no real provider credentials, registry
+push or deployment. Distinguish container qualification, local CI reproduction,
+actual hosted CI evidence and deployment qualification.
+
+### Consequences and revisit trigger
+
+Restart initialization is repeatable for the current single-backend stack. It is
+not a concurrent multi-replica migration lock. Before production deployment, decide
+migration job ownership/concurrency, credential management, access controls, target
+platform and operational readiness separately. Safe startup messages intentionally
+do not expose raw database/configuration errors; trusted diagnostics use the named
+initialization command. No Runtime/domain/repository boundary or dependency changes.

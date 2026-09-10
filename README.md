@@ -43,9 +43,8 @@ This list reflects the current repository baseline; future technologies require 
 ## Clean Local Start / 干净环境启动
 
 Validated qualification environment: Windows, Python 3.11 and PostgreSQL 17.
-Use a dedicated PostgreSQL database. The repository currently has no Dockerfile,
-compose application stack or CI workflow; provisioning PostgreSQL and deployment
-are external prerequisites, not automatic application startup steps.
+Use a dedicated PostgreSQL database. The Python-only path below requires an
+existing PostgreSQL server. A separate Compose path is documented below.
 
 From the repository root (PowerShell):
 
@@ -104,3 +103,84 @@ From `backend`, after initializing that test database:
 A test run without DATABASE_URL can skip PostgreSQL integration tests and is not
 release qualification. TASK-032 uses a real database, a controlled provider, fresh
 app/Runtime/Saver continuation and a real Uvicorn process, with zero acceptance skips.
+
+
+## Docker Development Start / 容器开发启动
+
+Requires Docker Engine/Desktop with Linux containers and Docker Compose. From
+repository root:
+
+```powershell
+docker build --no-cache -t agentflow-local .
+docker compose -p agentflow-local up -d --build --wait
+Invoke-RestMethod http://127.0.0.1:8000/api/health
+Invoke-RestMethod http://127.0.0.1:8000/api/tasks
+docker compose -p agentflow-local ps
+```
+
+The backend uses Python 3.11 and runs as UID 10001. PostgreSQL 17 is private to
+the Compose network; only backend port 8000 is published, on 127.0.0.1. Set
+BACKEND_PORT in the shell to change the host port. The image build context uses
+an allowlist and never includes host venvs, .git, .env, test artifacts or logs.
+Provider values are runtime environment configuration, never build arguments.
+
+Compose reads LLM_* and RECOVERY_STALE_AFTER_SECONDS from shell variables or the
+root .env. With no configuration it uses harmless provider placeholders: health,
+task queries and request validation work, but a successful Agent answer requires
+a working provider. Use .env.example as a reference; never commit real secrets.
+Local qualification uses a controlled provider; it does not validate an external
+provider account, availability or billing.
+
+The Compose database credentials (`agentflow` / `agentflow_dev_only`) are public,
+development-only defaults, not production secrets. Compose deliberately supplies
+its own DATABASE_URL with host `postgres`; the root .env DATABASE_URL remains for
+Python running on the host and is NOT used by the Compose backend. To change DB
+credentials, update both services together in an untracked, locally managed
+Compose override; URL-encode password characters in DATABASE_URL. Existing volume
+credentials are not changed by editing POSTGRES_PASSWORD. Do not use this stack
+as production deployment configuration.
+
+Compose waits for PostgreSQL's health check. The explicit container entrypoint
+then runs `alembic upgrade head`, followed by `python -m app.workflows.setup`,
+then execs Uvicorn. This does not add schema side effects to FastAPI import or
+lifespan. Alembic owns business tables; PostgresSaver owns checkpoint tables.
+Both initialization commands are repeatable. A failed phase exits nonzero and
+never starts Uvicorn. Startup failure logs identify the phase without exposing
+raw configuration/driver exceptions. Diagnose the named command in a trusted
+local environment; keep raw diagnostic output private.
+
+The backend health check calls its own /api/health and only succeeds once the API
+responds. It is an HTTP liveness check, not continuous DB/provider readiness or
+proof of production availability. The standalone image also needs a reachable,
+ready DATABASE_URL and required LLM settings; it fails closed if initialization
+cannot connect (bounded by PGCONNECT_TIMEOUT, default 5 seconds).
+
+```powershell
+docker compose -p agentflow-local restart backend
+docker compose -p agentflow-local up -d --wait
+docker compose -p agentflow-local down
+# DESTRUCTIVE for this project's development database: removes its stored data.
+docker compose -p agentflow-local down -v
+```
+
+Ordinary down/restart preserves the named database volume. down -v is only for a
+disposable clean-start verification. Do not apply it to data you need to keep.
+
+## CI Qualification
+
+.github/workflows/ci.yml runs on pushes and pull requests to main. It uses official
+checkout@v7 and setup-python@v7, Python 3.11, and a healthy PostgreSQL 17 service.
+It installs requirements, runs pip check, initializes both schemas, checks Alembic
+drift, runs the full PostgreSQL suite and builds the Docker image without cache.
+All provider credentials are fake. There is no registry push or deployment step.
+
+From backend, with an initialized disposable test database and repo-local TEMP/TMP,
+`python -m scripts.qualified_tests -q` runs the full suite and additionally fails
+on any skipped test (including collection skips) or pytest warning. It does not
+suppress warnings or weaken existing tests. The existing plain pytest commands
+remain useful for focused development; their success alone is not qualification
+if PostgreSQL tests were skipped.
+
+CI implementation/local reproduction and a real hosted Actions run are separate
+evidence. See tasks/TASK-033.md for actual validation results. GitHub-hosted CI
+evidence pending Human Gate push. Deployment Qualification = Not Yet Qualified.

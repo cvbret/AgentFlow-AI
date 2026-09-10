@@ -16,12 +16,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-032 - Project Hardening & End-to-End Validation`
-* **Review Result:** `PASS WITH NOTES`
-* **Summary:** application-level release qualification passed; fresh-environment reproducibility passed; 432 PostgreSQL tests passed; protected HITL/recovery/idempotency/observability E2E validated; Alembic/LangGraph schema ownership hardened; invalid ToolCall 502 contract restored; Docker delivery not yet qualified; CI not yet qualified; deployment not yet qualified
+* **Task:** `TASK-033 - Container & CI Delivery Qualification`
+* **Review Result:** `PASS`
+* **Summary:** Container Delivery qualified; Python 3.11 non-root backend image; PostgreSQL 17 Compose stack; TCP readiness; Alembic + PostgresSaver dual-schema startup; fail-fast initialization; clean-volume and restart validation; CI workflow implemented and independently locally reproduced; CI gate rejects skips/warnings; 440 PostgreSQL tests passed; hosted CI evidence pending Human Gate push; Deployment Qualification not yet qualified
 * **Git commit:** `Pending commit`
 
-TASK-032 已通过最终 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前尚未提交。
+TASK-033 已通过最终 Independent Review，最终 Review Result 为 `PASS`，当前尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -44,14 +44,15 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: TASK-031 最终 PostgreSQL 验证 417 passed、0 skipped、0 warnings；另独立验证 40 structured JSON events、0 sensitive-value hits。
 * Note: telemetry 为 best-effort runtime evidence，不是 durable audit；当前无 metrics backend、distributed tracing backend 或 persistent audit log。
 * Note: TASK-032 初次 venv bootstrap 曾因未预先重定向 TEMP/TMP 使用 `C:\WINDOWS\TEMP`；后续已切换 repo-local TEMP/TMP，事件已记录于 `docs/PROCESS_INCIDENTS.md`，属于 NOTE 而非 product defect。
-* Note: TASK-032 Application Core 与 Engineering Reproducibility 已通过；Container Delivery、CI Automation、Deployment Qualification 尚未通过 qualification。
+* Note: TASK-033 Reviewer 独立验证 Container Delivery；CI 仅完成 workflow implementation 与 local independent reproduction，GitHub-hosted CI evidence 仍 Pending Human Gate push。
+* Note: TASK-033 未进行 production deployment，Deployment Qualification 仍为 Not Yet Qualified。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-033 - Container & CI Delivery Qualification`
+* **Task:** `TASK-034 - Final Project Packaging`
 * **Status:** `Not Started`
 
-TASK-032 已完成 application-level release qualification；下一阶段进入 Container & CI Delivery Qualification。当前不开始执行 TASK-033。
+TASK-033 已完成 Container & CI Delivery Qualification；下一阶段进入 Final Project Packaging。当前不开始执行 TASK-034。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -97,9 +98,10 @@ TASK-032 已完成 application-level release qualification；下一阶段进入 
 * TASK-029 的 ledger execution state 与 LangGraph checkpoint、Task/Approval business state 分离；`EXECUTING` / `UNKNOWN` 不触发 blind replay。TASK-030 已建立 operator-triggered recovery 与 evidence-driven reconciliation；background recovery、orphan cleanup、stale RUNNING recovery 与更广泛 cross-store reconciliation 仍属后续能力。
 * TASK-030 已建立 `RECOVERY_REQUIRED`、operator-triggered evidence-driven recovery、single-winner recovery claim、generation fencing、completed Graph reconciliation 及 capability-aware stale ledger recovery；恢复仍不提供 universal crash-safe exactly-once。
 * TASK-031 已建立 framework-neutral structured observability、server-generated request correlation、18 lifecycle events 与 allowlist-based sensitive-data policy；telemetry delivery best-effort，不承担 audit、metrics backend 或 distributed tracing backend 职责。
-* TASK-032 完成 application-level release qualification 与 fresh-environment reproducibility；当前无 application Dockerfile/compose、`.github/workflows` 或 target deployment qualification，因此不得表述为 production-ready。
+* TASK-032 完成 application-level release qualification 与 fresh-environment reproducibility；TASK-033 随后完成 Container Delivery qualification，但 hosted CI evidence 与 target deployment qualification 仍未完成，因此不得表述为 production-ready。
+* TASK-033 已建立 Python 3.11 non-root application image、PostgreSQL 17 Compose、TCP readiness、Alembic → PostgresSaver fail-fast initialization 与 `.github/workflows/ci.yml`；CI workflow 已本地复现，但 hosted CI evidence 仍待 Human Gate push，deployment qualification 仍未完成。
 
-Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay、operator-triggered recovery 与 structured observability 已建立。TASK-032 的 application-level qualification 已完成，但 Docker/CI/deployment qualification、background automatic recovery、universal crash-safe exactly-once、metrics/tracing backend 与 persistent audit 仍属于后续任务。
+Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay、operator-triggered recovery 与 structured observability 已建立。TASK-032 application-level qualification 与 TASK-033 Container Delivery qualification 已完成，但 hosted CI evidence、deployment qualification、background automatic recovery、universal crash-safe exactly-once、metrics/tracing backend 与 persistent audit 仍属于后续任务。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 
@@ -192,6 +194,8 @@ Task Definition
 * `TD-003` — LLM HTTP timeout is not explicitly configured (Closed by TASK-014)
 * `TD-004` — Calculator accepts non-finite and boolean numeric inputs
 * `TD-005` — Alembic configuration coupled to LLM application settings
+
+Hosted CI evidence、real external provider qualification、target deployment qualification 与 byte-perfect dependency locking 属于 Remaining Release Gap / Future Capability，不是新的 Technical Debt。
 
 Docker、CI 与 deployment qualification 是 Remaining Release Gap / Planned Finalization Capability，不是新的 Technical Debt。
 
