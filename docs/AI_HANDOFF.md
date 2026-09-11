@@ -17,12 +17,12 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-034 - Final Project Packaging`
-* **Review Result:** `PASS`
-* **Summary:** final README, resume, interview guide and project report packaged; three Mermaid diagrams, Capability Matrix, Technology Selection, Reliability / Safety Story and Known Boundaries documented; Application Core, Engineering Reproducibility, Container Delivery and CI Automation qualified; GitHub-hosted CI PASS; 440-test baseline retained; Deployment Qualification and Real Provider Validation not yet qualified
+* **Task:** `Real LLM HTTP E2E Integration`
+* **Review Result:** `PASS WITH NOTES`
+* **Summary:** OpenAI-compatible HTTP path to DeepSeek, real Tool Calling, Tool execution, LLM → Tool → LLM closure, AgentRuntime + LangGraph E2E, FastAPI HTTP E2E and PostgreSQL Task persistence/query validated; Developer full regression 440 passed; Reviewer regression 44 passed; BLOCKER = 0; IMPORTANT = 0
 * **Git commit:** `Pending Human Gate`
 
-TASK-034 已通过最终 Independent Review，最终 Review Result 为 `PASS`，当前文档变更尚未提交。
+Real LLM HTTP E2E Integration 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前相关变更尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -49,6 +49,9 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: TASK-033 未进行 production deployment，Deployment Qualification 仍为 Not Yet Qualified。
 * Note: TASK-034 未重新运行 PostgreSQL full suite；正式既有验证基线为 440 passed、0 failed、0 skipped、0 warnings。
 * Note: TASK-034 documentation validation independently confirmed 3/3 Mermaid diagrams、6/6 PowerShell blocks、23 local Markdown links 与 valid Compose configuration。
+* Note: 本轮 Developer 已真实验证 DeepSeek HTTP / Tool Calling / Task persistence 闭环；Reviewer 未重复真实 Provider 调用，但独立验证 44 passed、0 failed、0 skipped、0 warnings。
+* Note: config.py 存在重复 `Path` import，无运行影响；真实 HTTP 故障修复点是补齐 `DATABASE_URL`、PostgreSQL host connectivity 与 Task persistence HTTP E2E，不是新增 dotenv 自动加载。
+* Note: 不得据此推导 production deployment、production availability、所有 Provider 验证或全面 secret/log audit 已完成。
 
 ## Current Next Task / 当前下一任务
 
@@ -103,9 +106,9 @@ Core runtime, reliability, delivery qualification and final packaging are comple
 * TASK-031 已建立 framework-neutral structured observability、server-generated request correlation、18 lifecycle events 与 allowlist-based sensitive-data policy；telemetry delivery best-effort，不承担 audit、metrics backend 或 distributed tracing backend 职责。
 * TASK-032 完成 application-level release qualification 与 fresh-environment reproducibility；TASK-033 随后完成 Container Delivery 与 hosted CI qualification，但 target deployment qualification 仍未完成，因此不得表述为 production-ready。
 * TASK-033 已建立 Python 3.11 non-root application image、PostgreSQL 17 Compose、TCP readiness、Alembic → PostgresSaver fail-fast initialization 与 `.github/workflows/ci.yml`；CI Workflow 已由本地独立复现并经 GitHub-hosted run 验证，Deployment Qualification 仍未完成。
-* TASK-034 完成 final project packaging；README、resume、interview guide、final project report、三张 Mermaid 图与 Capability Matrix 已交付。当前 Deployment Qualification 与 Real Provider Validation 仍未完成，但不构成 active task。
+* TASK-034 完成 final project packaging；README、resume、interview guide、final project report、三张 Mermaid 图与 Capability Matrix 已交付。随后 Real LLM HTTP E2E Integration 已完成；当前仅 production Deployment / Provider Qualification 仍未完成。
 
-Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay、operator-triggered recovery 与 structured observability 已建立。TASK-032 application-level qualification、TASK-033 Container Delivery/CI qualification 与 TASK-034 final packaging 已完成，但 deployment qualification、Real Provider Validation、background automatic recovery、universal crash-safe exactly-once、metrics/tracing backend 与 persistent audit 仍属于 optional future work。
+Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay、operator-triggered recovery、structured observability 与 development-environment real Provider HTTP E2E 已建立。Deployment Qualification、production-grade Provider Qualification、background automatic recovery、universal crash-safe exactly-once、metrics/tracing backend 与 persistent audit 仍属于 optional future work。
 
 AI coding workflow currently uses Workspace Boundary Guard v1，包括：
 

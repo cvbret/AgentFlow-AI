@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import math
 from functools import lru_cache
 from pathlib import Path
@@ -7,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
+ENV_FILE = PROJECT_ROOT / ".env"
 
 class ConfigurationError(RuntimeError):
     """Raised when required application configuration is invalid or missing."""
@@ -15,7 +17,7 @@ class ConfigurationError(RuntimeError):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=PROJECT_ROOT / ".env",
+        env_file=ENV_FILE,
         env_file_encoding="utf-8",
         env_prefix="",
         extra="ignore",

@@ -8,7 +8,7 @@
 
 AgentFlow-AI 将一次模型交互变成可查询、可暂停、可继续的 Task。项目重点是外部调用失败、人工审批跨请求以及进程重启时，如何依据持久化证据继续工作，并在无法确认安全性时停止。
 
-已验证状态以 [CURRENT_STATE](docs/CURRENT_STATE.md) 为准；生产部署与真实 provider 生产级验证尚未完成。阅读 [项目总结](docs/FINAL_PROJECT_REPORT.md)、[简历材料](docs/RESUME.md) 或 [面试指南](docs/INTERVIEW_GUIDE.md) 可快速了解设计取舍。
+已验证状态以 [CURRENT_STATE](docs/CURRENT_STATE.md) 为准；真实 OpenAI-compatible Provider HTTP E2E 已在开发环境完成验证，但生产部署与生产级 Provider Qualification 尚未完成。阅读 [项目总结](docs/FINAL_PROJECT_REPORT.md)、[简历材料](docs/RESUME.md) 或 [面试指南](docs/INTERVIEW_GUIDE.md) 可快速了解设计取舍。
 
 ## Why This Project Exists
 
@@ -34,7 +34,7 @@ AgentFlow-AI 将一次模型交互变成可查询、可暂停、可继续的 Tas
 | Docker | Qualified | 非 root backend、PostgreSQL 17、双 schema 初始化与健康检查 |
 | CI | Qualified；hosted run PASS | PostgreSQL 全套测试门禁与无缓存镜像构建 |
 | Deployment | Not Yet Qualified | 未进行目标生产环境部署验收 |
-| Real Provider Validation | Not Yet Qualified | 当前验收使用受控 provider，不代表真实账号/生产验证 |
+| Real Provider HTTP E2E | Validated (development) | DeepSeek 已完成真实 HTTP / Tool Calling / Task persistence 验证；不代表生产 Provider Qualification |
 
 ## Architecture
 
@@ -255,9 +255,9 @@ docker compose -p agentflow-local down -v
 
 ## Project Status
 
-应用核心、工程可重复性、容器交付与 CI Automation 已完成验证。当前交付包括可运行后端、测试、Docker/CI 以及项目说明材料；文档包装仍需 Independent Review，不能据此自行同步为项目已完成。
+应用核心、工程可重复性、容器交付、CI Automation、真实 Provider HTTP E2E 与项目文档包装已完成验证。当前交付包括可运行后端、测试、Docker/CI 以及项目说明材料。
 
-**Deployment Qualification 与 Real Provider Validation 均为 Not Yet Qualified。** 生产权限、目标部署、运维与真实外部服务验收不由一次绿色 CI 推导。
+**Deployment Qualification 与 production-grade Provider Qualification 仍为 Not Yet Qualified。** 生产权限、目标部署、运维与真实外部服务验收不由开发环境 E2E 或一次绿色 CI 推导。
 
 ## Known Boundaries / Non-goals
 
@@ -268,3 +268,10 @@ docker compose -p agentflow-local down -v
 - 无 multi-agent orchestration、MCP 或前端；审批/恢复接口也不等于完整生产权限体系。
 
 这些是明确范围边界，不自动归类为 Technical Debt。受控测试中的副作用计数与恢复成功，不能推广成对任意真实外部系统的保证。
+
+
+### Host Uvicorn with Compose PostgreSQL
+
+从仓库根目录执行 docker compose -p agentflow-local -f compose.yaml -f compose.host.yaml up -d --wait postgres，仅启动现有 PostgreSQL 服务。override 提供宿主端口 127.0.0.1:15432，数据库身份仍来自 compose.yaml。本地 DATABASE_URL 使用该宿主地址；随后执行现有 Alembic 和 PostgresSaver 初始化。不要删除数据卷排查连接问题。
+
+若 8000 已占用，从 backend 使用 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001。Swagger 地址为 http://127.0.0.1:8001/docs。HTTP 执行需要持久化依赖；直接 Runtime 成功不代表数据库配置完整。

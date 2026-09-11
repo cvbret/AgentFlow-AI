@@ -476,6 +476,8 @@ def test_chat_message_rejects_invalid_role() -> None:
 def test_client_raises_clear_error_when_configuration_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Missing-config tests must not load a developer's real provider credentials.
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)

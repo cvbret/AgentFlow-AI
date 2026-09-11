@@ -48,6 +48,12 @@ The API layer handles HTTP request handling, request validation, and response fo
 
 `POST /api/agent/run → task_id + answer → GET /api/tasks/{task_id}`
 
+真实 Provider validation 已确认以下运行链路：
+
+`FastAPI → Task Service / PostgreSQL → AgentRuntime → LangGraph StateGraph → LLMClient → OpenAI-compatible Provider (DeepSeek) → Tool Calling → Protected Tool Execution / Tool Registry → Tool Result → LLM → final_answer → Task persistence → HTTP Response`
+
+DeepSeek 仅是当前开发环境中完成验证的 Provider；`LLMClient` 与整体架构保持 OpenAI-compatible、provider-neutral，不构成 DeepSeek-specific framework。
+
 ## Task / Application Layer / Task 应用层
 
 The Task Service coordinates the application-level flow for one task. It should connect the API contract to the Agent Runtime without mixing HTTP concerns, database concerns, and raw LLM calls into one function.
@@ -77,7 +83,7 @@ The Agent Runtime is responsible for:
 * controlling the Agent Loop
 * deciding when execution has ended
 
-中文释义：这是 Agent 的核心执行边界。Runtime 协调模型和工具，但不应把每个具体业务工具硬编码进去。它未来还必须拥有最大步骤数、超时、重试和失败分类等可靠性控制。
+中文释义：这是 Agent 的核心执行边界。Runtime 协调模型和工具，但不应把每个具体业务工具硬编码进去。当前已具备最大步骤数、超时、重试和失败分类等可靠性控制；真实 Provider HTTP E2E 也已在开发环境完成验证。
 
 ## Tool Layer / Tool 层
 

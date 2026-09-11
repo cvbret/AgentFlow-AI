@@ -30,11 +30,17 @@ Allow the LLM to request a named tool with structured inputs when reasoning requ
 
 中文释义：模型负责提出工具调用意图，系统负责校验和执行。这样可以把“模型决策”和“程序实际执行”分开，避免把所有流程硬编码或无审计地交给模型。
 
+### Real Provider Validation / 真实 Provider 验证
+
+The OpenAI-compatible LLM path, real Tool Calling, Tool execution and LLM → Tool → LLM loop have been validated against DeepSeek in the development environment. The integration remains provider-neutral; DeepSeek is a validated Provider, not an architecture binding.
+
+中文释义：当前已通过真实 DeepSeek 验证 LLM、Tool Calling、Tool 执行和最终回答闭环，但架构仍保持 OpenAI-compatible、provider-neutral。该验证不等于生产 Provider 或生产部署 qualification。
+
 ### Tool Registry and Dispatch / 工具注册与分发
 
 Register available tools, resolve a tool by name, validate its input, and dispatch it to the correct implementation.
 
-中文释义：工具注册表是 Agent 可用能力的明确目录；分发器把模型返回的工具名称映射到真实实现。未来的权限、超时和副作用控制也需要以此为边界。
+中文释义：工具注册表是 Agent 可用能力的明确目录；分发器把模型返回的工具名称映射到真实实现。权限、超时和副作用控制均以此为边界，当前已建立相应的可靠性与安全策略。
 
 ### Agent Execution Loop / Agent 执行循环
 
@@ -64,7 +70,7 @@ Bound waiting and retry behavior for tools and external services.
 
 Combine explicit workflow states and transitions with LLM decision making where appropriate.
 
-中文释义：稳定的业务步骤不应全部依赖模型自由发挥。未来可用显式状态和条件转移约束流程，再让 LLM 处理适合推理的部分。
+中文释义：稳定的业务步骤不应全部依赖模型自由发挥。当前通过 LangGraph StateGraph、显式状态和条件转移约束流程，再让 LLM 处理适合推理的部分。
 
 ### Human-in-the-loop / 人在回路
 

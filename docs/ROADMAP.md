@@ -71,11 +71,13 @@ TASK-033：Container & CI Delivery Qualification 已完成。
 
 TASK-034：Final Project Packaging 已完成。
 
+Real LLM HTTP E2E Integration：真实 OpenAI-compatible Provider、Tool Calling、AgentRuntime、FastAPI HTTP 与 PostgreSQL Task persistence 已完成开发环境验证。
+
 AgentFlow-AI Core Project = Completed / Finalized。
 
 主开发 roadmap 在 TASK-034 结束，不设置 TASK-035，也不存在 active next Task。
 
-Optional Future Work：Deployment Qualification、Real Provider Validation、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、Multi-Agent、MCP。
+Optional Future Work：Deployment Qualification、production-grade Provider Qualification、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、Multi-Agent、MCP。
 
 ## Phase 6 - Observability / 可观测性
 
@@ -84,7 +86,7 @@ Optional Future Work：Deployment Qualification、Real Provider Validation、Ope
 * metrics backend remains future capability
 * persistent audit history remains future capability
 
-TASK-032 已完成 application-level release qualification；Docker delivery、CI automation 与 deployment qualification 尚未完成。
+TASK-032 已完成 application-level release qualification；TASK-033 已完成 Docker delivery 与 CI automation qualification，deployment qualification 仍未完成。
 
 TASK-033 已完成 Container Delivery qualification 与 GitHub-hosted CI qualification；Deployment Qualification 仍待完成。
 

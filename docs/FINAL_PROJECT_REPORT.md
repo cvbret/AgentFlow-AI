@@ -1,6 +1,6 @@
 # AgentFlow-AI Final Project Report
 
-本报告总结当前已实现、已验证的后端能力，作为项目展示与技术交接入口。TASK-034 Final Project Packaging 已完成并通过 Independent Review；本报告不将未验证的部署或真实 provider 能力表述为已完成。
+本报告总结当前已实现、已验证的后端能力，作为项目展示与技术交接入口。TASK-034 Final Project Packaging 与后续 Real LLM HTTP E2E Integration 均已通过 Independent Review；本报告不将未验证的部署或生产级 provider 能力表述为已完成。
 
 ## Project Goal
 
@@ -16,7 +16,7 @@ Task、Approval 与 Execution Ledger 由自研领域和 Repository 管理；Post
 
 ## Completed Capabilities
 
-已实现 Agent Tool Calling、有界循环、Task 持久化与查询、LLM 可靠性策略、Tool safety、独立 Approval、HITL approve/reject、durable checkpoint、fresh Runtime/Saver 继续执行、Execution Ledger、成功结果重用、operator-triggered recovery 和结构化 observability。Docker 与 CI 已 Qualified。逐项状态与实现定位见 README Capability Matrix。
+已实现 Agent Tool Calling、有界循环、Task 持久化与查询、LLM 可靠性策略、Tool safety、独立 Approval、HITL approve/reject、durable checkpoint、fresh Runtime/Saver 继续执行、Execution Ledger、成功结果重用、operator-triggered recovery 和结构化 observability。OpenAI-compatible LLM、真实 DeepSeek Tool Calling、AgentRuntime + LangGraph、FastAPI HTTP 与 PostgreSQL Task persistence 闭环已在开发环境完成验证。Docker 与 CI 已 Qualified。逐项状态与实现定位见 README Capability Matrix。
 
 默认 Tool 为 Calculator；受保护 Tool 和 provider 使用受控实现验证。项目没有生产审批 UI、真实外部副作用业务接入或统一生产权限平台。
 
@@ -60,7 +60,7 @@ generation fencing 以预期状态和准确 updated_at 防止旧执行者覆盖�
 
 ## Known Boundaries
 
-Deployment Qualification、Real Provider Validation 尚未完成。没有 worker/queue scheduler、后台恢复器、universal exactly-once、persistent audit log、distributed tracing backend、Prometheus/Grafana、multi-agent orchestration 或 MCP。Docker 镜像标签与现有未直接固定的传递依赖也不是字节级供应链锁定。
+Deployment Qualification 与 production-grade Provider Qualification 尚未完成。没有 worker/queue scheduler、后台恢复器、universal exactly-once、persistent audit log、distributed tracing backend、Prometheus/Grafana、multi-agent orchestration 或 MCP。Docker 镜像标签与现有未直接固定的传递依赖也不是字节级供应链锁定。
 
 这些属于范围或未来验收，不自动归为 Technical Debt。既有维护项以 [TECH_DEBT](TECH_DEBT.md) 为准；旧 warning 记录不改变当前全量基线 0 warnings 的事实。
 
@@ -75,4 +75,4 @@ Deployment Qualification、Real Provider Validation 尚未完成。没有 worker
 
 ## Handoff
 
-运行与演示从 README 开始；讲解材料见 [RESUME](RESUME.md) 和 [INTERVIEW_GUIDE](INTERVIEW_GUIDE.md)。Core runtime、reliability、Container Delivery、CI Automation 与 final packaging 已完成。Deployment Qualification 与 Real Provider Validation 仍未完成，不构成 active task；最终状态以 CURRENT_STATE 与 AI_HANDOFF 为准。
+运行与演示从 README 开始；讲解材料见 [RESUME](RESUME.md) 和 [INTERVIEW_GUIDE](INTERVIEW_GUIDE.md)。Core runtime、reliability、Container Delivery、CI Automation、real Provider HTTP E2E validation 与 final packaging 已完成。Deployment Qualification 与 production-grade Provider Qualification 仍未完成，不构成 active task；最终状态以 CURRENT_STATE 与 AI_HANDOFF 为准。

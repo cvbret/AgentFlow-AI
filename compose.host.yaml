@@ -1,0 +1,6 @@
+# Host Python/Uvicorn access to the same development PostgreSQL service.
+# 5432/5433 may belong to other local projects; this mapping is loopback-only.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:15432:5432"

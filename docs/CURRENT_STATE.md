@@ -10,16 +10,17 @@ Phase 1 - Core Agent Runtime
 
 ## Current Milestone / 当前里程碑
 
-Establish the project foundation and complete the first runnable FastAPI backend.
+Core runtime, real Provider HTTP E2E validation, delivery qualification and final project packaging established.
 
-中文释义：当前首先要形成清晰的项目骨架和最小可运行服务，再逐步接入 LLM 与 Agent Runtime。
+中文释义：项目核心 Runtime、真实 Provider HTTP E2E、交付 qualification 与最终项目文档已完成；生产部署和生产级 Provider qualification 仍属可选后续验收。
 
 ## Project Development Status / 项目开发状态
 
 Completed / Finalized
 
 Core runtime, reliability, delivery qualification and final project packaging are complete.
-Deployment Qualification and Real Provider Validation remain optional future validation.
+Real LLM Provider HTTP E2E validation is complete in the development environment.
+Production Deployment Qualification and production-grade Provider Qualification remain outside the validated scope.
 
 ## Process / Infrastructure
 
@@ -383,9 +384,22 @@ Deployment Qualification and Real Provider Validation remain optional future val
 * GitHub-hosted CI = PASS
 * Final Project Packaging = Qualified
 * Deployment Qualification = Not Yet Qualified
-* Real Provider Validation = Not Yet Qualified
+* Real Provider Validation = Not Yet Qualified at the TASK-034 packaging checkpoint; superseded by the subsequent Real LLM HTTP E2E validation
 * 3/3 Mermaid diagrams parsed, 6/6 PowerShell blocks parsed, 23 local Markdown links valid
 * Compose configuration valid
+
+## Real LLM / HTTP E2E Validation / 真实 LLM / HTTP E2E 验证
+
+* Real LLM Provider integration = Validated in development environment
+* OpenAI-compatible HTTP path to DeepSeek validated
+* Real Tool Calling = Validated
+* AgentRuntime + LangGraph real E2E = Validated
+* FastAPI `POST /api/agent/run` real HTTP E2E = Validated
+* PostgreSQL Task persistence and subsequent Task query = Validated
+* Developer evidence: focused 46 passed and full 440 passed, 0 failed, 0 skipped, 0 warnings
+* Reviewer evidence: 44 passed, 0 failed, 0 skipped, 0 warnings; real DeepSeek call not repeated
+* Review Result: PASS WITH NOTES; BLOCKER = 0; IMPORTANT = 0
+* DeepSeek is the validated development Provider, not an architecture binding
 
 上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029、TASK-030、TASK-031、TASK-032、TASK-033 和 TASK-034 已经过实现、测试及 Independent Review 验证。
 
@@ -410,4 +424,4 @@ Status: Completed / Finalized
 
 主开发路线已在 TASK-034 收敛。不存在 active next Task，也不创建 TASK-035。
 
-Optional Future Work：Deployment Qualification、Real Provider Validation、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、Multi-Agent、MCP。
+Optional Future Work：Deployment Qualification、production-grade Provider Qualification、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、Multi-Agent、MCP。

@@ -245,6 +245,8 @@ def test_agent_run_maps_real_configuration_failure_safely(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Missing-config tests must not load a developer's real provider credentials.
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
     app.dependency_overrides.clear()
     dependencies.close_agent_runtime()
     get_settings.cache_clear()
