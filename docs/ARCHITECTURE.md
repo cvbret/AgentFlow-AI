@@ -579,3 +579,150 @@ The HTTP health check establishes liveness after initialization, not continuing
 DB/provider health. CI uses a separate PostgreSQL service and the same schema owner
 commands, a zero-skips/zero-warnings pytest gate, and image build. Hosted CI evidence
 and target deployment qualification remain separate release gates (ADR-010).
+
+
+## Multi-Agent Layer boundary (TASK-036 and TASK-037 completed; TASK-038+ proposed)
+
+This section records the current Agent Layer and the remaining future direction.
+Agent Entity, AgentRegistry and AgentToolPolicy are established by TASK-036, and
+the Agent Communication Contract is established by TASK-037. Supervisor
+orchestration, routing, scheduling and software engineering tools remain
+unimplemented. See [Multi-Agent Design](MULTI_AGENT_DESIGN.md) and
+[ADR-011](DECISIONS.md#adr-011---multi-agent-architecture-direction).
+
+Retain the application boundary:
+
+```text
+TaskExecutionService
+  → Agent Layer (identity, role and policy description; non-executing)
+    → Agent Communication Contract (message / artifact / future interaction schema)
+      → existing AgentRuntime (single run / resume / recovery façade)
+        → LangGraph Supervisor workflow (proposed, bounded and sequential)
+          → Supervisor / Planner / Developer / Tester role nodes
+            → existing Tool Runtime (proposed Agent Tool Policy at its entry points)
+              → Execution Reliability Layer
+```
+
+Agent definitions describe identity, roles, prompts and policy metadata; they do
+not own database Sessions, clients or execution lifecycles. Agent Entity,
+AgentRegistry and AgentToolPolicy form a descriptive layer above AgentRuntime.
+The Agent Communication Contract provides message and artifact schemas but does
+not perform routing, scheduling, execution, persistence, approval or recovery.
+The current AgentToolPolicy is not yet enforced by Tool Runtime. Future
+Supervisor delegation is workflow routing, not a second business Tool execution
+system or another AgentRuntime invocation.
+
+Structured AgentMessage contracts carry selected inputs and results. Shared
+checkpoint state carries workflow coordination data and references only; existing
+Domain / Application Services retain business validation, authorization and
+transaction ownership. A root Task retains its thread identity, while role
+invocations have distinct correlation identities.
+
+Role permissions are intersected with task/resource and deployment policy,
+including normal execution, approved resume, cached result access and recovery.
+side_effect_free remains an independent trusted Tool safety property. Safe tools
+currently execute without Ledger rows; protected tools retain persisted Approval,
+Execution Ledger and capability-aware recovery. All proposed write/test tools
+must use that protected path. Human approval cannot override a permission denial.
+
+The current recovery logic recognizes specific single-agent checkpoint shapes.
+A future workflow needs explicit type/schema version selection, stable internal
+operation IDs despite provider call-ID collisions, durable actor/operation
+authorization binding, and compatible WorkflowEvidence before protected execution
+is enabled. Checkpoint snapshots are never approval authority. Preserve
+checkpoint-first pause, short business transactions, generation fencing and
+UNKNOWN fail-closed semantics; no universal exactly-once guarantee is added.
+
+Initial scope is one Supervisor and three sequential specialists, one outstanding
+approval per root Task, and bounded rework. Nested runtimes, peer-to-peer routing,
+parallel writes, extra execution ledgers and automatic recovery workers remain
+outside the proposed first demo.
+
+
+## TASK-037 — Agent Communication Contract (completed; PASS WITH NOTES)
+
+The communication domain lives in `backend/app/agents/communication/`. It supplies
+data contracts above AgentRuntime; it does not invoke Runtime, LLMs, Tools,
+Approval, Ledger, Recovery or workflow code.
+
+- AgentMessage: generated UUID message_id, required UUID task_id, nonblank string
+  sender_agent_id / receiver_agent_id, MessageType, nonblank string content,
+  tuple of Artifacts, JSON metadata and timezone-aware created_at normalized to UTC.
+  Agent identifiers currently refer to Agent names; no registry lookup or identity
+  authentication occurs. An explicitly supplied UUID supports reconstruction,
+  but global uniqueness and delivery deduplication are not enforced.
+- MessageType: REQUEST, RESPONSE, RESULT, ERROR, HANDOFF only. HANDOFF describes
+  intent; it does not transfer control or schedule an Agent.
+- Artifact: generated UUID artifact_id, ArtifactType (PLAN / CODE_PATCH /
+  TEST_REPORT), nonblank name, required JSON content, and JSON metadata.
+  Content is an inline generic payload, not a validated patch/test-report format.
+  No storage URI, filesystem access or object store is implemented.
+- Models reject unknown fields and invalid enum/UUID values. Fields are frozen;
+  artifacts use a tuple. JSON payloads are defensively copied on construction,
+  not deeply immutable. Payloads are untrusted data, never execution permission.
+- CommunicationEvent is a future telemetry DTO with event_name, UTC timestamp,
+  INFO level, agent component, task_id, message_id and optional request_id.
+  Names are agent.message.sent, agent.message.received, agent.handoff.started.
+  It excludes content, artifacts and arbitrary metadata. It follows TASK-031
+  naming/correlation conventions but is NOT accepted by the existing
+  ObservabilityEvent allowlist. No sink, adapter, event emission or Event Bus
+  is added; constructing a DTO does not prove delivery.
+
+Persistence boundary: in-memory runtime/domain objects only. No database tables,
+message store, checkpoint integration, artifact persistence or delivery guarantees.
+Supervisor, routing, scheduling, collaboration loops and Multi-Agent graphs remain
+unimplemented; a later task may connect these contracts through the existing
+Agent Layer → AgentRuntime boundary.
+
+The current TASK-037 definition narrows earlier TASK-035 roadmap suggestions:
+this task implements communication only; Supervisor work is reserved for TASK-038.
+Advanced invocation/version/operation binding remains future design work. Earlier
+design documents are proposals, not evidence these integrations exist.
+
+Developer validation: 98 Agent Communication + Agent Abstraction tests passed.
+Independent Review: PASS WITH NOTES; BLOCKER = 0; IMPORTANT = 0. Final project-state
+synchronization is complete.
+
+
+## TASK-038 — One-shot Supervisor delegation (awaiting Independent Review)
+
+Implemented in `backend/app/agents/supervisor.py`: create_supervisor returns the
+existing Agent with role SUPERVISOR; select_worker resolves an exact configured
+name (default developer) from AgentRegistry and requires role DEVELOPER.
+delegate_task is a synchronous one-shot orchestration function, not a Runtime,
+executor, scheduler or graph. There is no model call for Supervisor decision making.
+
+```text
+Caller owning Task lifecycle / Runtime resources
+  → delegate_task with Supervisor Agent and existing AgentRegistry
+  → REQUEST AgentMessage
+  → injected existing AgentRuntime.run(worker system prompt + request content)
+  → existing LangGraph / existing Tool safety path
+  → RESULT AgentMessage returned to Supervisor
+```
+
+The same business task_id is passed unchanged. RESULT reverses sender/receiver and
+contains metadata.in_reply_to referencing the REQUEST UUID. DelegationResult exposes
+both messages to the caller. No artifacts are inferred from plain Runtime output.
+An invalid role, missing worker, self-delegation or invalid request fails before
+Runtime invocation. Runtime exceptions, including ApprovalRequired, propagate
+unchanged; no RESULT is synthesized on pause/error, no retry/resume/close occurs.
+
+The caller must provide an existing managed Task and properly configured Runtime.
+This entry point is not wired to TaskExecutionService or HTTP; it does not create
+Task rows, claim lifecycle transitions or handle durable delegation resume.
+The existing Runtime owns execution and protected-tool safety. Role allowed_tools
+remains declarative: this MVP does not enforce per-Agent grants against Runtime
+tools. An unrestricted Runtime must not be presented as isolated worker execution.
+Tests use an empty ToolRegistry for the real Runtime smoke path.
+
+CommunicationEventName adds agent.delegation.started / completed as future DTO
+vocabulary only. No event is emitted; the existing TASK-031 allowlist/sinks remain
+unchanged. REQUEST/RESULT messages are in memory, with no restart reconstruction,
+deduplication or durable completion envelope after approval resume.
+
+The explicit TASK-038 definition selects an above-Runtime rule-based MVP instead
+of implementing the earlier TASK-035 graph-internal Supervisor proposal.
+See ADR-012. No new execution system, LangGraph modification, scheduling, planner,
+autonomous loop, message persistence, queue or complex workflow is introduced.
+Developer validation: 14 TASK-038 tests passed; Independent Review pending.

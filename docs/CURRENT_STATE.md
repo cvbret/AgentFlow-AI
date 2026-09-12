@@ -16,7 +16,7 @@ Core runtime, real Provider HTTP E2E validation, delivery qualification and fina
 
 ## Project Development Status / 项目开发状态
 
-Completed / Finalized
+Core Project Completed / Finalized; Multi-Agent Extension In Progress
 
 Core runtime, reliability, delivery qualification and final project packaging are complete.
 Real LLM Provider HTTP E2E validation is complete in the development environment.
@@ -388,6 +388,27 @@ Production Deployment Qualification and production-grade Provider Qualification 
 * 3/3 Mermaid diagrams parsed, 6/6 PowerShell blocks parsed, 23 local Markdown links valid
 * Compose configuration valid
 
+* TASK-036 - Agent Abstraction Layer
+* TASK-036 review result: PASS WITH NOTES
+* Agent Entity established
+* AgentRegistry established
+* AgentToolPolicy established as a declarative policy layer
+* Agent Layer remains above AgentRuntime and does not execute Tasks or Tools
+* Supervisor orchestration and Agent Communication / Message Model not yet implemented
+* metadata is currently a defensive copy rather than deeply immutable; it is not used for security decisions
+* AgentToolPolicy is not yet enforced by the Tool Runtime
+* 85 passed
+
+* TASK-037 - Agent Communication Model
+* TASK-037 review result: PASS WITH NOTES
+* Agent Communication Contract established
+* AgentMessage and MessageType established
+* Artifact contract established
+* Communication Event DTO established for future observability
+* JSON serialization and UTC timestamp contract verified
+* Communication layer remains non-executing and non-persistent
+* 98 related tests passed
+
 ## Real LLM / HTTP E2E Validation / 真实 LLM / HTTP E2E 验证
 
 * Real LLM Provider integration = Validated in development environment
@@ -401,11 +422,11 @@ Production Deployment Qualification and production-grade Provider Qualification 
 * Review Result: PASS WITH NOTES; BLOCKER = 0; IMPORTANT = 0
 * DeepSeek is the validated development Provider, not an architecture binding
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029、TASK-030、TASK-031、TASK-032、TASK-033 和 TASK-034 已经过实现、测试及 Independent Review 验证。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029、TASK-030、TASK-031、TASK-032、TASK-033、TASK-034、TASK-036 和 TASK-037 已经过实现、测试及 Independent Review 验证；TASK-035 仍为 Multi-Agent 架构研究阶段。
 
 ## In Progress / 进行中
 
-None currently confirmed.
+TASK-038 Supervisor Orchestration：Developer implementation complete，Awaiting Independent Review。新增 Supervisor Agent factory、固定 Developer 路由、REQUEST/RESULT 与一次既有 AgentRuntime 调用。专项测试 14 passed；未同步为 Reviewed / Completed。
 
 ## Known Issues / 已知问题
 
@@ -418,10 +439,10 @@ None currently confirmed.
 
 ## Next / 下一步
 
-None / Project Complete
+TASK-038 - Supervisor Orchestration
 
-Status: Completed / Finalized
+Status: Awaiting Independent Review
 
-主开发路线已在 TASK-034 收敛。不存在 active next Task，也不创建 TASK-035。
+TASK-035、TASK-036 与 TASK-037 已完成当前 Multi-Agent Foundation。Communication Layer 只负责 message contract、artifact contract 与 future agent interaction schema；不负责 routing、scheduling、execution、persistence、approval 或 recovery。TASK-038 已实现基本 Supervisor delegation 与固定 Worker 路由，待独立审查；Scheduling、Planner、复杂 workflow 和消息/Artifact Persistence 尚未实现。
 
-Optional Future Work：Deployment Qualification、production-grade Provider Qualification、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、Multi-Agent、MCP。
+Optional Future Work：Deployment Qualification、production-grade Provider Qualification、TASK-038+ Supervisor Orchestration、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、MCP。

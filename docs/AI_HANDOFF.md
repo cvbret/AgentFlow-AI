@@ -13,16 +13,16 @@ Chat history is not the source of truth. Repository documentation and Git histor
 * **Project:** `AgentFlow-AI`
 * **Positioning:** Enterprise-oriented AI Agent backend
 * **Current Phase:** `Phase 1 - Core Agent Runtime`
-* **Current Project Status:** `Finalized`
+* **Current Project Status:** `Core Project Finalized; Multi-Agent Extension In Progress`
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `Real LLM HTTP E2E Integration`
+* **Task:** `TASK-037 - Agent Communication Model`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** OpenAI-compatible HTTP path to DeepSeek, real Tool Calling, Tool execution, LLM → Tool → LLM closure, AgentRuntime + LangGraph E2E, FastAPI HTTP E2E and PostgreSQL Task persistence/query validated; Developer full regression 440 passed; Reviewer regression 44 passed; BLOCKER = 0; IMPORTANT = 0
+* **Summary:** AgentMessage, MessageType, Artifact contract and Communication Event DTO established above the existing AgentRuntime; communication remains non-executing and non-persistent; 98 related tests passed; no BLOCKER or IMPORTANT
 * **Git commit:** `Pending Human Gate`
 
-Real LLM HTTP E2E Integration 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前相关变更尚未提交。
+TASK-037 已通过 Independent Review，最终 Review Result 为 `PASS WITH NOTES`，当前相关变更尚未提交。
 
 ## Compatibility Note / 兼容性说明
 
@@ -52,13 +52,17 @@ Review compatibility if the public error hierarchy is formalized later.
 * Note: 本轮 Developer 已真实验证 DeepSeek HTTP / Tool Calling / Task persistence 闭环；Reviewer 未重复真实 Provider 调用，但独立验证 44 passed、0 failed、0 skipped、0 warnings。
 * Note: config.py 存在重复 `Path` import，无运行影响；真实 HTTP 故障修复点是补齐 `DATABASE_URL`、PostgreSQL host connectivity 与 Task persistence HTTP E2E，不是新增 dotenv 自动加载。
 * Note: 不得据此推导 production deployment、production availability、所有 Provider 验证或全面 secret/log audit 已完成。
+* Note: TASK-036 metadata 当前为防御性副本，不是深度不可变；metadata 不参与安全判断，因此暂不处理。
+* Note: TASK-036 AgentToolPolicy 当前属于声明层策略，尚未接入 Tool Runtime enforcement；后续 Task 再评估。
+* Note: TASK-037 Communication Contract 仅提供 message、artifact 与 future interaction schema，不负责 routing、scheduling、execution、persistence、approval 或 recovery。
+* Note: TASK-037 的 Communication Event DTO 尚未接入现有 Observability sink；消息/Artifact persistence 与 delivery guarantee 尚未建立。
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `None / Project Complete`
-* **Status:** `Completed / Finalized`
+* **Task:** `TASK-038 - Supervisor Orchestration`
+* **Status:** `Developer implementation complete; Awaiting Independent Review`
 
-Core runtime, reliability, delivery qualification and final packaging are complete. No active next Task is assigned; TASK-035 is not created.
+TASK-035、TASK-036 与 TASK-037 已完成当前 Multi-Agent Foundation。TASK-038 已交付一次性 Supervisor delegation 和固定 Developer 路由，等待 Independent Review；Planner、scheduling 与复杂 Multi-Agent workflow 尚未实现。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -67,7 +71,7 @@ Core runtime, reliability, delivery qualification and final packaging are comple
 * LangGraph 当前作为 orchestration layer，负责 workflow state、checkpoint、interrupt、resume 和 routing foundation。
 * TASK-027 后 AgentRuntime 仍为 application-facing façade，实际 Agent loop orchestration 由 LangGraph StateGraph 承担。
 * 不提前引入 MCP。
-* 不提前实现 Multi-Agent。
+* Multi-Agent extension must remain incremental; Agent Layer is a descriptive abstraction above AgentRuntime, not a second execution system。
 * Repository 是 Source of Truth。
 * Architecture changes 必须进入 `docs/DECISIONS.md`。
 * Durable task state 当前使用 PostgreSQL，作为持久化 Agent Task 的 Source of Truth。
@@ -107,6 +111,7 @@ Core runtime, reliability, delivery qualification and final packaging are comple
 * TASK-032 完成 application-level release qualification 与 fresh-environment reproducibility；TASK-033 随后完成 Container Delivery 与 hosted CI qualification，但 target deployment qualification 仍未完成，因此不得表述为 production-ready。
 * TASK-033 已建立 Python 3.11 non-root application image、PostgreSQL 17 Compose、TCP readiness、Alembic → PostgresSaver fail-fast initialization 与 `.github/workflows/ci.yml`；CI Workflow 已由本地独立复现并经 GitHub-hosted run 验证，Deployment Qualification 仍未完成。
 * TASK-034 完成 final project packaging；README、resume、interview guide、final project report、三张 Mermaid 图与 Capability Matrix 已交付。随后 Real LLM HTTP E2E Integration 已完成；当前仅 production Deployment / Provider Qualification 仍未完成。
+* TASK-036 完成 Agent Abstraction Layer；Agent Entity、AgentRegistry 与 AgentToolPolicy 仅负责身份、角色和策略描述，不负责执行。Supervisor Orchestration 尚未实现；TASK-037 Communication Model 已通过 Independent Review，Communication Contract 仍不负责执行。
 
 Resume Architecture Readiness = Ready；real Agent durable resume、approved Tool continuation、successful ledgered replay、operator-triggered recovery、structured observability 与 development-environment real Provider HTTP E2E 已建立。Deployment Qualification、production-grade Provider Qualification、background automatic recovery、universal crash-safe exactly-once、metrics/tracing backend 与 persistent audit 仍属于 optional future work。
 
@@ -221,3 +226,21 @@ Deployment qualification 是 Optional Future Work，不是新的 Technical Debt�
 * Learning Context
 
 历史信息应由 Git history、`tasks/`、`docs/DECISIONS.md` 和 `docs/TECH_DEBT.md` 保存。
+
+## TASK-037 Current Boundary / 当前边界
+
+新增 backend/app/agents/communication/：AgentMessage、五种 MessageType、Artifact / ArtifactType，以及未来 CommunicationEvent DTO。AgentMessage 使用 UUID message/task identity、名称字符串 sender/receiver identity、UTC created_at 与 JSON serialization。Artifact 为 inline JSON contract，无存储。metadata/content 防御性复制，但不承诺深度不可变。
+
+Observability 仅提供 agent.message.sent、agent.message.received、agent.handoff.started 的 payload-free 未来模型；未修改 TASK-031 event allowlist，未接入 sink，也未发送事件。
+
+Developer validation：98 passed（Agent Communication + Agent Abstraction），未重跑 TASK-026–034 qualification。Independent Review = PASS WITH NOTES；当前不含 Supervisor、Routing、Scheduling、Multi-Agent graph、Message Queue 或 Persistence。TASK-038 的编排范围以新任务定义为准，TASK-035 早期路线图不是本次实现范围。
+
+TASK-037 已完成 Review 与 State Synchronization。Communication Contract 仍为非执行、非持久化边界；TASK-038 Supervisor Orchestration 尚未开始。
+
+## TASK-038 Developer Handoff
+
+create_supervisor 复用 Agent(role=SUPERVISOR)，delegate_task 使用 Registry 中指定 DEVELOPER，构造 REQUEST、调用注入的 AgentRuntime.run、返回关联 RESULT。Supervisor 不直接调用工具或维护 Task lifecycle；不重试、不关闭 Runtime，不处理审批恢复。14 项 TASK-038 专项测试通过，包含真实 Runtime/现有 LangGraph smoke 和 ApprovalRequired 原样传播。
+
+未来事件 DTO 增加 agent.delegation.started/completed；未接入 sink。未实现 HTTP/TaskExecutionService wiring、角色工具强制隔离、消息 persistence、审批后 delegation result 重建、Scheduling、Planner 或复杂 workflow。当前 Task 定义与早期图内 Supervisor 提案的差异见 ADR-012。
+
+下一步 Independent Review → 必要修复 → Validation → State Synchronization。Latest Completed Task 保持 TASK-037；本条不是 Review 通过记录。

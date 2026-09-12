@@ -394,3 +394,129 @@ migration job ownership/concurrency, credential management, access controls, tar
 platform and operational readiness separately. Safe startup messages intentionally
 do not expose raw database/configuration errors; trusted diagnostics use the named
 initialization command. No Runtime/domain/repository boundary or dependency changes.
+
+
+## ADR-011 - Multi-Agent Architecture Direction
+
+**Status:** Proposed
+**Date:** 2026-09-12
+**Task:** TASK-035 — research and design only; Awaiting Independent Review.
+
+### Context
+
+The reliable single-agent baseline now includes LangGraph orchestration, durable
+HITL, approved execution Ledger, operator recovery and delivery qualification.
+The requested extension must demonstrate role separation and permission isolation
+without replacing AgentRuntime or duplicating Tool execution.
+
+Source inspection shows that the current graph has one message context and one
+pending Tool cursor, Ledger identity is unique per (task_id, tool_call_id), and
+recovery recognizes specific single-agent checkpoint shapes. Multi-Agent support
+is therefore an explicit extension, not a configuration-only claim.
+
+### Proposed Decision
+
+- Retain TaskExecutionService → AgentRuntime → LangGraph Workflow → Tool Runtime.
+  Compose a shallow Supervisor workflow inside the existing Runtime, with bounded
+  sequential Planner, Developer and Tester role nodes.
+- Introduce immutable versioned AgentDefinition and a static AgentRegistry.
+  Agents describe behavior; Runtime and application/infrastructure retain
+  execution and resource ownership. Do not introduce MultiAgentRuntime.
+- Use structured message passing for delegation/results, persisted through root
+  workflow coordination state. No global mutable business model, message broker
+  or peer-to-peer delegation in the first demo.
+- Enforce AgentToolPolicy at the existing Tool Runtime entry points, including
+  approved resume, cached results and recovery; intersect role grants with task
+  resource and deployment policy. Prompt/schema filtering alone is insufficient.
+- Preserve trusted side_effect_free classification, checkpoint-first HITL,
+  persisted Approval authorization, approved Tool Ledger and existing recovery.
+  Human approval cannot grant a denied tool. Safe tools retain their existing
+  non-ledger path; this decision does not claim all calls are durably deduplicated.
+- Normalize provider call IDs into stable per-operation execution IDs and retain
+  provider message pairing. Bind actor/invocation/resource context durably to
+  protected execution authorization before exposing write tools.
+- Version workflow contracts and adapt existing recovery evidence/dispatch for
+  the new graph while preserving old single-agent checkpoints. Unsupported
+  versions fail closed; do not restart from fabricated initial input.
+- Select an isolated AI Software Engineering Assistant as the first candidate demo.
+  Add tools only through the existing Tool system after isolation and multi-agent
+  HITL / Ledger / recovery qualification.
+
+### Alternatives Considered
+
+| Alternative | Reason not selected for the first demo |
+| --- | --- |
+| AutoGen or CrewAI as a second runtime | Their coordination patterns are useful references, but adopting another execution/persistence owner duplicates existing responsibilities. |
+| OpenAI Swarm / free handoff | Swarm is educational and superseded by Agents SDK; free conversation takeover does not match centralized engineering acceptance. |
+| Deep hierarchical teams | Additional budgets, nested pause ownership and recovery contracts lack demonstrated need. |
+| Peer-to-peer / broadcast shared history | Harder termination, context isolation and authorization provenance. |
+| MultiAgentRuntime wrapping graphs and existing AgentRuntime | Reverses the established façade relationship and risks duplicate lifecycle management. |
+| Fixed sequential pipeline only | Retained as evaluation baseline; bounded Supervisor rework provides the proposed additional behavior. |
+
+### Consequences
+
+Benefits: one reliable execution boundary, role-specific context and tool grants,
+centralized bounded coordination, and explicit correlation across approval and
+recovery. Costs: additional LLM latency/cost, typed message contracts, policy
+checks, operation identity mapping, persistent actor binding and graph-version
+compatibility work. These are planned requirements, not implemented guarantees.
+
+No code, migration, dependency or production qualification is introduced by this
+ADR. Universal exactly-once, hard sandboxing by role configuration, immutable audit
+and automatic recovery are not promised. The root task remains sequential with
+one pending approval; rejection retains the existing whole-task terminal meaning.
+
+### Acceptance and Revisit Triggers
+
+Independent Review must validate boundary consistency and the staged gates in
+[TASK-035 design](MULTI_AGENT_DESIGN.md). TASK-036+ remain Proposed in
+[ROADMAP](ROADMAP.md). This ADR becomes Accepted only through the review process.
+
+Revisit for demonstrated parallel workload needs, multiple pending approvals,
+nested teams, cross-process execution, dynamic registry, different rejection
+semantics or a production multi-tenant trust boundary. Revisit also if measured
+quality gains do not justify Supervisor cost versus a single agent or pipeline.
+
+### Research Basis
+
+Official [AutoGen Teams](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html),
+[CrewAI Processes](https://docs.crewai.com/v1.15.21/en/concepts/processes),
+[LangChain Subagents](https://docs.langchain.com/oss/python/langchain/multi-agent/subagents),
+[OpenAI orchestration](https://openai.github.io/openai-agents-python/multi_agent/),
+[Swarm repository](https://github.com/openai/swarm) and
+[Azure architecture patterns](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns).
+Evidence and project-specific trade-offs are distinguished in the design.
+
+
+## ADR-012 - One-shot Supervisor above existing AgentRuntime
+
+**Status:** Proposed — implementation awaiting Independent Review.
+**Task:** TASK-038
+
+### Context and decision
+
+The explicit TASK-038 task requests a minimal rule-based delegation layer above
+the existing Runtime. This narrows and differs from ADR-011's future graph-internal
+Supervisor direction; ADR-011 remains a historical proposal, not implemented fact.
+
+Use the existing Agent Entity for SUPERVISOR and DEVELOPER roles, exact-name Registry
+routing, REQUEST/RESULT AgentMessages, and one call to an injected AgentRuntime.run.
+A function owns the one-shot orchestration; no Supervisor class, new Runtime,
+executor, graph or resource owner is created. Supervisor performs no LLM execution;
+the selected worker uses the existing Runtime with its system prompt.
+
+### Consequences and limits
+
+Task lifecycle and Runtime lifetime remain caller-owned. Errors and approval pauses
+propagate unchanged. No HTTP/application wiring, durable delegation resume, message
+persistence or role tool enforcement is claimed. Existing Tool/Approval/Ledger/
+Recovery paths are unchanged. This is basic delegation, not a fully isolated or
+durable multi-agent execution platform. Tests exercise the new boundary only.
+
+### Revisit triggers
+
+Before exposing this entry point to application requests or enabling role-specific
+tools, design application lifecycle wiring, execution permission enforcement,
+persistent actor/operation correlation and approval-resume result reconstruction.
+Multiple workers, planning, repeated delegation and graph-based coordination need
+a subsequent explicit task and review.
