@@ -21,14 +21,39 @@ def test_task_identity_mapping():
 def test_minimal_state_interrupt_and_resume():
     identity = task_id_to_thread_id(uuid4())
     state: AgentGraphState = {"task_id": identity}
-    assert set(AgentGraphState.__annotations__) == {"task_id", "resume_result", "messages", "step_count", "max_steps", "final_answer", "tool_calls", "tool_cursor", "pending_approval", "resume_approval_id"}
+
+    assert set(AgentGraphState.__annotations__) == {
+        "task_id",
+        "resume_result",
+        "messages",
+        "step_count",
+        "max_steps",
+        "final_answer",
+        "tool_calls",
+        "tool_cursor",
+        "pending_approval",
+        "resume_approval_id",
+        "execution_mode",
+        "agent_identity",
+    }
+
     graph = build_foundation_graph(InMemorySaver())
     config = {"configurable": {"thread_id": identity}}
+
     paused = graph.invoke(state, config)
-    assert paused["__interrupt__"][0].value == {"task_id": identity, "kind": "durable_pause"}
+
+    assert paused["__interrupt__"][0].value == {
+        "task_id": identity,
+        "kind": "durable_pause",
+    }
     assert graph.get_state(config).next == ("durable_pause",)
+
     result = graph.invoke(Command(resume="continued"), config)
-    assert result == {"task_id": identity, "resume_result": "continued"}
+
+    assert result == {
+        "task_id": identity,
+        "resume_result": "continued",
+    }
     assert graph.get_state(config).next == ()
 
 
