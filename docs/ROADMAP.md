@@ -75,7 +75,7 @@ Real LLM HTTP E2E Integration：真实 OpenAI-compatible Provider、Tool Calling
 
 AgentFlow-AI Core Project = Completed / Finalized。
 
-原 Core Project roadmap 在 TASK-034 完成收尾；TASK-035 作为 Multi-Agent 架构研究任务保留其既有状态。TASK-036 Agent Abstraction Layer、TASK-037 Agent Communication Model 与 TASK-038 Supervisor Orchestration 已完成，TASK-039 Tool Permission Enforcement 已完成，TASK-040+ 继续按明确 Task Definition 推进。
+原 Core Project roadmap 在 TASK-034 完成收尾；TASK-035 作为 Multi-Agent 架构研究任务保留其既有状态。TASK-036 Agent Abstraction Layer、TASK-037 Agent Communication Model 与 TASK-038 Supervisor Orchestration 已完成，TASK-039 Tool Permission Enforcement 已完成，TASK-040 Multi-Agent HITL Integration 已完成，TASK-041 按明确 Task Definition 推进。
 
 Optional Future Work：Deployment Qualification、production-grade Provider Qualification、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、MCP。
 
@@ -115,7 +115,7 @@ Later evaluation may include:
 TASK-035 架构研究及设计交付已完成；ADR-011 仍为 Proposed，不据此宣称其已 Accepted。
 TASK-036 Agent Abstraction Layer、TASK-037 Agent Communication Model 与 TASK-038
 Supervisor Orchestration 已完成并通过 Independent Review，Review Result 均为
-**PASS WITH NOTES**；TASK-039 已 Completed，Independent Re-Review #2 = PASS WITH NOTES；下列 TASK-040+ 为 **Proposed / Not Implemented**，不改变既有
+**PASS WITH NOTES**；TASK-039 已 Completed，Independent Re-Review #2 = PASS WITH NOTES；TASK-040 为 **Completed / PASS WITH NOTES**；TASK-041 为 **Not Started**，不改变既有
 Core Project qualification。后续实施以 ADR-011 审查和各 Task 的明确范围为前提。
 
 方向：[Multi-Agent Design](MULTI_AGENT_DESIGN.md) /
@@ -127,7 +127,7 @@ Core Project qualification。后续实施以 ADR-011 审查和各 Task 的明确
 | TASK-037 — Agent Communication Model | AgentMessage、MessageType、Artifact 与未来 CommunicationEvent contract；不负责 routing、scheduling、execution 或 persistence | 已完成；Independent Review = PASS WITH NOTES；98 related tests passed |
 | TASK-038 — Supervisor Orchestration | Agent(role=SUPERVISOR)、固定 Developer 路由、REQUEST/RESULT、一次注入的既有 AgentRuntime 调用 | 已完成；Independent Review = PASS WITH NOTES；14 tests passed；无 Scheduling/Planner/复杂 workflow |
 | TASK-039 — Tool Permission Enforcement | 既有 Tool boundary exact allow-list enforcement、durable identity continuity、ambiguous provenance fail closed | Completed；PASS WITH NOTES；两个 IMPORTANT Closed；Reviewer 196 passed / 0 failed / 0 skipped / 0 warnings |
-| TASK-040 — Multi-Agent HITL Integration | 复用既有 Tool/Registry/Policy 扩展受控工程工具，并评估必要的 HITL 扩展 | 039；Not Started |
+| TASK-040 — Multi-Agent HITL Integration | Supervisor 委派接入既有 durable HITL；fresh Worker identity、权限复查、Ledger/recovery 与结果关联 | 039；Completed；PASS WITH NOTES；Reviewer 183 passed / 0 failed / 0 skipped / 0 warnings |
 | TASK-041 — Multi-Agent Demo Packaging | AI Software Engineering Assistant fixture、演示说明、配置和架构图、CI 回归与成本质量证据 | 040；Not Started；独立 Review 后再同步项目状态 |
 
 所有未来任务继续复用 TaskExecutionService → AgentRuntime → LangGraph Workflow →
@@ -141,4 +141,4 @@ continuity。Runtime 恢复 checkpoint provenance，Tool 层做权限决策。�
 LEGACY continuation 兼容；AGENT_BOUND 恢复可信身份并执行策略；missing/null/unknown
 或不一致 provenance fail closed。历史 ambiguous checkpoint 需 trusted migration，
 通用 migration tooling 未实现。enterprise authorization、dynamic policy 与
-user-level permission 不在范围内。TASK-040 尚未开始。
+user-level permission 不在范围内。TASK-040 已完成并通过 Independent Review（PASS WITH NOTES；BLOCKER = 0；IMPORTANT = 0）。唯一 NOTE 为结果投影的独立只读 Session contract。TASK-041 Not Started。受控工程 Tool 扩展未在本任务实现，需后续明确 Task scope。

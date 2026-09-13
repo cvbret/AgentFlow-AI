@@ -594,3 +594,55 @@ historical checkpoints without trustworthy provenance are rejected by default.
 Continuation requires trusted source verification and migration to explicit LEGACY
 or AGENT_BOUND first. General migration tooling is not implemented. This is a
 compatibility boundary of safe fail-closed behavior, not an open TASK-039 defect.
+
+
+## ADR-014 - Compose Supervisor delegation with existing Task/HITL lifecycle
+
+Status: Proposed — TASK-040 implementation Completed; Independent Review PASS WITH NOTES;
+State Synchronization complete, awaiting Human Gate. ADR acceptance is not automatic.
+
+Context: one-shot Supervisor returns only after Runtime success; protected calls pause
+before that return. Task creation/pause/resume already have durable application owners.
+
+Decision: add a trusted optional invocation hook to TaskExecutionService.execute,
+reuse its unchanged continue_running handling, expose the original REQUEST through a
+Supervisor callback, and provide application-layer delegation/result projection helpers.
+Existing ApprovalDecisionService and TaskResumeService own human decisions and resume;
+existing Runtime restores Worker provenance and Tool policy before Ledger/effects.
+No Supervisor approval logic, extra Runtime, graph changes or message storage.
+
+Consequences: the application retains REQUEST for reply correlation and owns resource
+lifetimes. Durable Task/Approval/checkpoint remain the source of execution truth.
+A read-only result projection validates provenance and preserves REJECTED vs FAILED;
+it is not durable message delivery or caller authentication. A lost REQUEST is not
+reconstructed. Alternatives rejected: catching ApprovalRequired as a Supervisor failure,
+second approval state machine, duplicating Agent identity in Approval/Ledger tables.
+
+TASK-040 final clarification: authorization precedes Approval; Human Approval cannot
+elevate AgentToolPolicy permissions. Resume/recovery restores the original Worker
+through durable execution_mode / agent_identity and trusted agent_loader, then
+re-enforces current Tool policy. Missing/unknown provenance still fails closed.
+TaskExecutionService remains lifecycle authority and Task.result remains durable
+result authority. AgentMessage is projection only, with no message persistence or
+exactly-once delivery; successful projection requires matching terminal checkpoint
+and Task.result. Rejection remains REJECTED, never an autonomous re-plan.
+
+The only TASK-040 Reviewer NOTE is the independent read Session constraint:
+`read_delegation_result` requires a fresh, dedicated read-only Session supplied by
+the trusted caller. It calls `session.rollback()` before checkpoint access; a Session
+with uncommitted writes can lose caller changes, and a stale ORM Session can yield
+non-fresh durable state. This is an internal trusted API contract, documented and
+used correctly by tests, not an open TASK-040 defect. A helper-owned read Session or
+misuse guard may be considered if the calling surface expands; neither is implemented
+or changed in this synchronization.
+
+Independent Review: **PASS WITH NOTES**; BLOCKER = 0; IMPORTANT = 0.
+Reviewer allowed State Synchronization. Per the supplied
+TASK-040_State_Synchronization_Developer_Prompt.md, the Independent Reviewer
+personally executed **183 passed / 0 failed / 0 skipped / 0 warnings** using fresh
+PostgreSQL 17, Alembic and PostgresSaver. Coverage: TASK-040 integration, Supervisor,
+Agent identity continuity, Tool permission, Task execution/resume, Approval decision,
+Execution Ledger and Recovery. Extra probes rejected Task.result/checkpoint mismatch
+and pending execution as success, and confirmed projection never invokes Runtime
+run/resume. These are Reviewer-executed results, not tests rerun in this document-only
+State Synchronization; Developer evidence remains separately recorded in TASK-040.

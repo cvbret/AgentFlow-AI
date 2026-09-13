@@ -1,5 +1,6 @@
 """One-shot Supervisor delegation through the existing injected AgentRuntime."""
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -37,6 +38,7 @@ class DelegationResult:
 def delegate_task(
     *, supervisor: Agent, registry: AgentRegistry, runtime: "AgentRuntime",
     task_id: UUID, content: str, worker_name: str = "developer",
+    on_request: Callable[[AgentMessage], None] | None = None,
 ) -> DelegationResult:
     """Delegate exactly once; the caller owns task lifecycle and Runtime resources.
 
@@ -55,6 +57,8 @@ def delegate_task(
         receiver_agent_id=worker.name, message_type=MessageType.REQUEST,
         content=content,
     )
+    if on_request is not None:
+        on_request(request.model_copy(deep=True))
     with tool_permission_context(worker):
         output = runtime.run(
             [

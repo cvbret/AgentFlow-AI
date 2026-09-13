@@ -581,7 +581,7 @@ commands, a zero-skips/zero-warnings pytest gate, and image build. Hosted CI evi
 and target deployment qualification remain separate release gates (ADR-010).
 
 
-## Multi-Agent Layer boundary (TASK-036 through TASK-039 completed; TASK-040+ not started)
+## Multi-Agent Layer boundary (TASK-036 through TASK-040 completed; TASK-041 not started)
 
 This section records the current Agent Layer and the remaining future direction.
 Agent Entity, AgentRegistry and AgentToolPolicy are established by TASK-036, and
@@ -884,4 +884,115 @@ Approval / Ledger / Cache
 Tool Execution
 ```
 
-Full delegation recovery and Multi-Agent HITL integration remain future work.
+TASK-040 completes Multi-Agent HITL integration and result projection for caller-retained
+REQUESTs; arbitrary delegation recovery remains future work.
+
+
+## TASK-040 — Multi-Agent HITL application integration (Completed / PASS WITH NOTES)
+
+```text
+Application caller: retain original REQUEST
+  -> execute_delegated_task
+  -> TaskExecutionService.execute(invoke=...) owns Task lifecycle
+  -> Supervisor delegate_task -> Worker permission context
+  -> Existing AgentRuntime -> LangGraph -> Tool Runtime
+  -> AgentToolPolicy -> protected Tool approval interrupt
+  -> Existing HITLPausePersistence -> WAITING_APPROVAL
+Human decision -> Existing ApprovalDecisionService
+  approve -> Existing TaskResumeService -> fresh AgentRuntime
+          -> checkpoint provenance + trusted agent_loader -> policy re-check
+          -> existing approved execution / Ledger / idempotency -> Task result
+  reject  -> existing atomic REJECTED Task + Approval; no Tool execution
+Application caller -> read_delegation_result -> correlated reply to Supervisor
+```
+
+The optional `invoke` hook is trusted application composition, never model-supplied
+code. Default single-Agent execution is unchanged; `continue_running` remains the
+only lifecycle/error/pause reconciliation path. Supervisor only exposes a copy of
+REQUEST before invocation via `on_request`; it never catches/approves/resumes HITL.
+
+The result reader uses a caller-owned read Session and ends its read transaction
+before checkpoint access. Supply a dedicated Session without pending writes.
+It requires matching Task input/id, AGENT_BOUND provenance and Worker identity;
+success additionally requires a terminal checkpoint matching the durable Task result.
+Pending returns None. RESULT is addressed to the original Supervisor with `in_reply_to`;
+ERROR retains TaskStatus REJECTED or FAILED explicitly. This internal projection is
+not a public authentication API and never uses REQUEST as execution authority.
+
+REQUEST correlation is retained by the trusted application caller across Runtime/Saver
+replacement. No AgentMessage persistence, automatic delivery, persisted Supervisor
+continuation or reconstruction of a lost REQUEST is introduced. Repeated reads may
+produce distinct message IDs; this is a projection, not exactly-once message delivery.
+
+Authorization precedes Approval creation and is repeated before approved execution,
+including cache replay. Current trusted loader policy wins over old grants. Approval
+is not permission escalation. Execution UUID/key, cache, claim and uncertain-effect
+semantics remain owned by existing Ledger/idempotency services; no generic crash-safe
+exactly-once guarantee is added. Recovery is unchanged and retains TASK-039 fail-closed
+provenance. No new tables, migrations, Tool system, event bus or approval state machine.
+
+### Final architecture and authority
+
+```text
+User / Caller
+  ↓
+Supervisor Agent (orchestration / delegation)
+  ↓
+Agent Communication (original REQUEST)
+  ↓
+Worker Agent
+  ↓
+AgentRuntime
+  ↓
+LangGraph
+  ↓
+Tool Runtime / AgentToolPolicy Enforcement
+  ↓
+Protected Tool / existing HITL
+  ↓
+Existing Approval Decision / Resume (restore same Worker and re-check policy)
+  ↓
+Ledger / Idempotency / Recovery
+  ↓
+Tool Execution
+```
+
+TaskExecutionService remains Task lifecycle authority; its invoke hook does not
+create a second lifecycle. Approval is the existing Tool execution safety gate.
+Supervisor does not approve, reject, execute Tools, own Ledger or resume Runtime.
+AgentMessage is only a communication projection; Task.result is the durable result
+authority. Successful projection requires Task.result == checkpoint.final_answer
+and no next nodes. The helper neither writes checkpoint nor mutates identity.
+
+Approve restores the original Worker using TASK-039 durable provenance, not Supervisor
+or ambient Agent identity; no manual ContextVar rebind. Authorization remains before
+Approval and is enforced again on continuation: no permissions means no Approval,
+Ledger or effect; an already APPROVED operation is still denied if policy was tightened.
+APPROVED belongs to Approval; the Task moves from WAITING_APPROVAL through existing
+resume handling to SUCCEEDED or FAILED. Reject remains REJECTED, with zero effects,
+no Ledger, retry, fallback or Supervisor re-plan.
+
+Reviewed approve and recovery paths preserve effect = 1, stable execution UUID/key,
+single Approval/Ledger execution, cache reads without claims and decision conflicts.
+Recovery covers approval dispatch loss and succeeded Ledger with lost workflow progress
+under existing stale/live-owner fencing; it is not general crash-safe exactly-once.
+
+The only TASK-040 Reviewer NOTE is the independent read Session constraint:
+`read_delegation_result` requires a fresh, dedicated read-only Session supplied by
+the trusted caller. It calls `session.rollback()` before checkpoint access; a Session
+with uncommitted writes can lose caller changes, and a stale ORM Session can yield
+non-fresh durable state. This is an internal trusted API contract, documented and
+used correctly by tests, not an open TASK-040 defect. A helper-owned read Session or
+misuse guard may be considered if the calling surface expands; neither is implemented
+or changed in this synchronization.
+
+Independent Review: **PASS WITH NOTES**; BLOCKER = 0; IMPORTANT = 0.
+Reviewer allowed State Synchronization. Per the supplied
+TASK-040_State_Synchronization_Developer_Prompt.md, the Independent Reviewer
+personally executed **183 passed / 0 failed / 0 skipped / 0 warnings** using fresh
+PostgreSQL 17, Alembic and PostgresSaver. Coverage: TASK-040 integration, Supervisor,
+Agent identity continuity, Tool permission, Task execution/resume, Approval decision,
+Execution Ledger and Recovery. Extra probes rejected Task.result/checkpoint mismatch
+and pending execution as success, and confirmed projection never invokes Runtime
+run/resume. These are Reviewer-executed results, not tests rerun in this document-only
+State Synchronization; Developer evidence remains separately recorded in TASK-040.

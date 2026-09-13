@@ -47,7 +47,11 @@ class TaskExecutionService:
         self._runtime_provider = runtime_provider
         self._pause_persistence = pause_persistence
 
-    def execute(self, task_input: str) -> Task:
+    def execute(
+        self, task_input: str, *,
+        invoke: Callable[[Task, AgentRuntime], AgentResult] | None = None,
+    ) -> Task:
+        # Trusted application composition hook; lifecycle handling is shared.
         task = Task(input=task_input)
         with observation_context(invocation=True, task_id=task.id):
             self._repository.save(task)
@@ -57,8 +61,13 @@ class TaskExecutionService:
             self._repository.save(task)
             task_changed(task, TaskStatus.PENDING)
 
-            return self.continue_running(task, lambda: self._runtime_provider().run(
-                [ChatMessage(role="user", content=task_input)], task_id=task.id))
+            def run() -> AgentResult:
+                runtime = self._runtime_provider()
+                if invoke is not None:
+                    return invoke(task, runtime)
+                return runtime.run([ChatMessage(role="user", content=task_input)], task_id=task.id)
+
+            return self.continue_running(task, run)
 
     def continue_running(self, task: Task, invoke: Callable[[], AgentResult]) -> Task:
         with observation_context(invocation=True, task_id=task.id):

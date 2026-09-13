@@ -17,10 +17,10 @@ Chat history is not the source of truth. Repository documentation and Git histor
 
 ## Latest Completed Task / 最近完成任务
 
-* **Task:** `TASK-039 - Tool Permission Enforcement`
+* **Task:** `TASK-040 - Multi-Agent HITL Integration`
 * **Status:** `Completed`
 * **Review Result:** `PASS WITH NOTES`
-* **Summary:** Tool boundary enforcement and durable trusted Agent identity continuity established; both original IMPORTANTs Closed; BLOCKER = 0; IMPORTANT = 0.
+* **Summary:** Existing Multi-Agent HITL, fresh Worker identity restoration, permission re-check and read-only result projection established; BLOCKER = 0; IMPORTANT = 0; NOTE: independent read Session contract.
 * **Git commit:** `Pending Human Gate`
 
 ## Compatibility Note / 兼容性说明
@@ -59,10 +59,10 @@ Review compatibility if the public error hierarchy is formalized later.
 
 ## Current Next Task / 当前下一任务
 
-* **Task:** `TASK-040 - Multi-Agent HITL Integration`
+* **Task:** `TASK-041 - Multi-Agent Demo Packaging`
 * **Status:** `Not Started`
 
-TASK-035、TASK-036、TASK-037 与 TASK-038 已完成当前 Multi-Agent Foundation。TASK-039 Tool Permission Enforcement 已完成，Independent Re-Review #2 = PASS WITH NOTES；Planner、scheduling 与复杂 Multi-Agent workflow 尚未实现。
+TASK-035、TASK-036、TASK-037 与 TASK-038 已完成当前 Multi-Agent Foundation。TASK-039 Tool Permission Enforcement 与 TASK-040 Multi-Agent HITL Integration 已完成并通过审查；Planner、scheduling 与复杂 Multi-Agent workflow 尚未实现。
 
 ## Important Architecture Constraints / 当前重要架构约束
 
@@ -241,7 +241,7 @@ TASK-037 已完成 Review 与 State Synchronization。Communication Contract 仍
 
 create_supervisor 复用 Agent(role=SUPERVISOR)，delegate_task 使用 Registry 中指定 DEVELOPER，构造 REQUEST、调用注入的 AgentRuntime.run、返回关联 RESULT。Supervisor 不直接调用工具或维护 Task lifecycle；不重试、不关闭 Runtime，不处理审批恢复。14 项 TASK-038 专项测试通过，包含真实 Runtime/现有 LangGraph smoke 和 ApprovalRequired 原样传播。
 
-未来事件 DTO 增加 agent.delegation.started/completed；未接入 sink。TASK-039 已补齐 AgentToolPolicy 工具权限强制检查；未实现 HTTP/TaskExecutionService wiring、消息 persistence、审批后 delegation result 重建、Scheduling、Planner 或复杂 workflow。当前 Task 定义与早期图内 Supervisor 提案的差异见 ADR-012。
+未来事件 DTO 增加 agent.delegation.started/completed；未接入 sink。TASK-039 已补齐 AgentToolPolicy 工具权限强制检查；TASK-040 已接入 TaskExecutionService 并提供保留原 REQUEST 的审批后结果投影；HTTP wiring、消息 persistence、丢失 REQUEST 后重建、Scheduling、Planner 或复杂 workflow 仍未实现。当前 Task 定义与早期图内 Supervisor 提案的差异见 ADR-012。
 
 TASK-038 已完成 Review 与 State Synchronization。TASK-039 Tool Permission Enforcement 已完成，Independent Re-Review #2 = PASS WITH NOTES。
 
@@ -279,13 +279,75 @@ Continuation requires trusted source verification and migration to explicit LEGA
 or AGENT_BOUND first. General migration tooling is not implemented. This is a
 compatibility boundary of safe fail-closed behavior, not an open TASK-039 defect.
 
-Completed Multi-Agent capabilities: TASK-035 architecture research (research deliverable),
-TASK-036 Agent Abstraction, TASK-037 Communication Contract, TASK-038 Supervisor
-Orchestration, TASK-039 Tool Permission Enforcement. TASK-035 research completion
-does not imply acceptance of the separately Proposed ADR-011.
+Completed Multi-Agent capabilities: TASK-035 Multi-Agent Architecture Research
+(research deliverable), TASK-036 Agent Abstraction Layer, TASK-037 Agent Communication
+Model, TASK-038 Supervisor Orchestration, TASK-039 Tool Permission Enforcement,
+and TASK-040 Multi-Agent HITL Integration. Research completion does not imply
+acceptance of the separately Proposed ADR-011.
 
-Not completed: Multi-Agent HITL Integration, full/advanced delegation recovery
-semantics and result reconstruction, historical provenance migration tooling,
-Planner, dynamic routing, scheduling, and message persistence.
+Not yet completed: TASK-041 final demo packaging, Planner, dynamic routing,
+scheduling, message persistence, rejection re-plan, multi-human approval,
+Agent-to-Agent approval, generic historical provenance migration tooling, and
+arbitrary delegation recovery beyond the reviewed existing recovery scenarios.
 
-Next task: **TASK-040 - Multi-Agent HITL Integration**. Status: **Not Started**.
+Next task: **TASK-041 - Multi-Agent Demo Packaging**. Status: **Not Started**.
+
+## TASK-040 — Completed / PASS WITH NOTES
+
+Multi-Agent HITL integration is complete. `execute_delegated_task` composes
+Supervisor/Worker delegation with existing TaskExecutionService; the trusted `invoke`
+hook only changes invocation content and reuses the Task creation, RUNNING, pause,
+success and failure persistence path. Existing Approval, HITLPausePersistence,
+ApprovalDecisionService, TaskResumeService, LangGraph checkpoints and Ledger/Recovery
+are reused; no second approval service/table, Runtime or HITL state machine exists.
+
+Worker identity → AgentToolPolicy → protected Tool classification → Human Approval
+→ Ledger / idempotency → Tool execution. Human Approval cannot elevate Tool permission.
+An unauthorized Worker creates no Approval, Ledger execution or Tool effect. Even
+APPROVED cannot bypass a policy tightened while waiting; the reviewed path records
+Task FAILED without Tool effect. Fresh Runtime/Saver restores the same Worker through
+TASK-039 execution_mode / agent_identity / trusted agent_loader, without caller
+ContextVar rebinding, Supervisor identity substitution or unrestricted legacy fallback.
+Missing/unknown provenance still fails closed.
+
+Protected execution pauses at Task WAITING_APPROVAL. APPROVED is an Approval state,
+not a Task terminal state: successful resume leads to Task SUCCEEDED. Human rejection
+remains Task REJECTED, distinct from FAILED, with zero Tool effects, no Ledger execution,
+retry, fallback Agent or autonomous re-plan. Task.result remains authoritative.
+Reviewed approve flow has one Tool effect, one Approval/Ledger execution, stable
+execution UUID/idempotency key, conflicting repeated decisions and cache replay with
+no new claim. Existing recovery covers approval dispatch loss and succeeded Ledger
+with lost workflow progress, preserving Worker identity, permission checks and
+stale/live-owner fencing; no general crash-safe exactly-once delivery is claimed.
+
+The caller retains the original REQUEST. `read_delegation_result` only reads Task
+and checkpoint, validates task id/input, AGENT_BOUND and Worker identity, then returns
+RESULT / ERROR / None with `in_reply_to` correlation. SUCCEEDED projection requires
+Task.result == checkpoint.final_answer and no pending execution; mismatch fails closed.
+WAITING_APPROVAL returns None; REJECTED/FAILED yield ERROR preserving original TaskStatus.
+AgentMessage is a communication projection, not execution/approval state or durable
+result authority. Projection does not resume, execute Tools, approve, claim Ledger,
+write checkpoints, authenticate or mutate Agent identity. No message persistence,
+message queue or exactly-once message delivery is provided.
+
+The only TASK-040 Reviewer NOTE is the independent read Session constraint:
+`read_delegation_result` requires a fresh, dedicated read-only Session supplied by
+the trusted caller. It calls `session.rollback()` before checkpoint access; a Session
+with uncommitted writes can lose caller changes, and a stale ORM Session can yield
+non-fresh durable state. This is an internal trusted API contract, documented and
+used correctly by tests, not an open TASK-040 defect. A helper-owned read Session or
+misuse guard may be considered if the calling surface expands; neither is implemented
+or changed in this synchronization.
+
+Independent Review: **PASS WITH NOTES**; BLOCKER = 0; IMPORTANT = 0.
+Reviewer allowed State Synchronization. Per the supplied
+TASK-040_State_Synchronization_Developer_Prompt.md, the Independent Reviewer
+personally executed **183 passed / 0 failed / 0 skipped / 0 warnings** using fresh
+PostgreSQL 17, Alembic and PostgresSaver. Coverage: TASK-040 integration, Supervisor,
+Agent identity continuity, Tool permission, Task execution/resume, Approval decision,
+Execution Ledger and Recovery. Extra probes rejected Task.result/checkpoint mismatch
+and pending execution as success, and confirmed projection never invokes Runtime
+run/resume. These are Reviewer-executed results, not tests rerun in this document-only
+State Synchronization; Developer evidence remains separately recorded in TASK-040.
+
+State Synchronization complete; awaiting Human Gate. See [TASK-040](../tasks/TASK-040.md).
