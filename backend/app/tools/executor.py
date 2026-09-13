@@ -1,3 +1,4 @@
+from app.tools.permission import ensure_tool_permission
 from app.llm.schemas import ToolCall
 from app.tools.policy import ToolExecutionPolicy
 from app.tools.registry import ToolRegistry
@@ -16,6 +17,7 @@ class ToolExecutor:
         self._execution_policy = execution_policy or ToolExecutionPolicy()
 
     def execute(self, tool_call: ToolCall) -> ToolExecutionResult:
+        ensure_tool_permission(tool_call.name)
         tool = self._registry.get(tool_call.name)
         self._execution_policy.ensure_automatic_execution_allowed(tool.metadata())
         result = tool.execute(tool_call.arguments)

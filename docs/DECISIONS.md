@@ -520,3 +520,77 @@ tools, design application lifecycle wiring, execution permission enforcement,
 persistent actor/operation correlation and approval-resume result reconstruction.
 Multiple workers, planning, repeated delegation and graph-based coordination need
 a subsequent explicit task and review.
+
+
+## ADR-013 - Scoped Agent identity with enforcement at existing Tool boundaries
+
+**Status:** Implemented and independently reviewed — PASS WITH NOTES; State Synchronization complete, pending Human Gate (no automatic ADR Accepted transition).
+**Task:** TASK-039
+
+### Decision
+
+Keep AgentToolPolicy as exact allow-list logic, but invoke it at existing Tool
+boundaries. Carry trusted Agent identity through a finally-reset ContextVar scope;
+Supervisor binds the selected Worker around the existing Runtime call. It performs
+no permission decision. Focused Fix adds Runtime provenance restoration and two checkpoint fields; Tool policy remains at its original boundary.
+
+Gate safe/protected dispatch, authorized validate (including cache and inherited
+recovery), and direct Tool.execute. Reject before reads/claims/effects with a distinct
+ToolPermissionDenied, never pretending an effect was attempted. Reuse existing
+telemetry with one permission-denied event, no Event Bus or new policy runtime.
+
+### Compatibility and limits
+
+Initial non-Agent calls retain the original contract; continuation requires explicit
+LEGACY with no Agent identity. Missing/null/unknown or inconsistent provenance
+fails closed via ResumeAuthorizationError. Agent execution
+entry points are trusted to establish a scope; the existing Supervisor does so.
+No user-supplied payload may become identity/grants. This is policy enforcement for
+bound Agent invocations, not authentication or a fail-closed anonymous public API.
+ContextVar is not durable. The focused fix persists minimal mode/Agent identity
+in workflow state and restores it through a trusted loader before continuation.
+Missing Agent-bound identity cannot fall back to legacy; full details follow.
+
+All roles use the same policy. Allowed does not replace Tool safety, Approval,
+Ledger or recovery capability checks. Python plugins remain trusted implementation
+code; this is not an OS/process sandbox, dynamic policy engine or enterprise IAM.
+
+### Revisit trigger
+
+Before durable multi-agent HTTP/delegation resume, define persisted ownership and
+application ownership integration, policy version/revocation
+semantics and application error mapping. Do not infer these from ambient context.
+
+## TASK-039 Final State — Completed / PASS WITH NOTES
+
+Independent Re-Review #2: **PASS WITH NOTES**. BLOCKER = 0; IMPORTANT = 0;
+both original IMPORTANTs = **Closed**. State Synchronization complete; awaiting Human Gate.
+Review evidence is supplied by TASK-039_State_Synchronization_Developer_Prompt.md:
+Independent Reviewer personally ran the affected PostgreSQL regression and confirmed
+**196 passed / 0 failed / 0 skipped / 0 warnings**. This documentation-only round
+has not rerun those tests. Coverage includes historical missing/null/unknown provenance,
+explicit LEGACY/AGENT_BOUND, fresh Runtime/Saver continuation, permissions, Supervisor,
+Approval, Ledger and Recovery. Reviewer probe: Tool effects = 0, Ledger calls = 0,
+loader calls = 0, and no successful result for an ambiguous historical checkpoint.
+
+AgentToolPolicy is enforced as an exact allow-list at the real Tool Runtime boundary,
+before Approval reads, Ledger claims, cached-result reuse or Tool effects.
+ToolPermissionDenied is not converted into an ordinary Tool execution failure.
+Supervisor/Runtime transport trusted Agent identity; LLM output, Tool arguments,
+AgentMessage metadata and ordinary external payloads cannot override it.
+Runtime persists execution_mode and agent_identity in existing LangGraph checkpoints,
+restores trusted identity through agent_loader on continuation, and binds transient
+execution context. Runtime does not make Tool permission decisions; ContextVar is
+transport only, never the sole durable identity source.
+
+| Continuation provenance | Final behavior |
+| --- | --- |
+| Explicit LEGACY, no Agent identity | Explicit legacy compatibility |
+| Explicit AGENT_BOUND | Restore durable trusted Agent identity and enforce AgentToolPolicy |
+| UNKNOWN / missing / null / unknown value / inconsistent mode and identity | Fail closed via ResumeAuthorizationError; no unrestricted continuation |
+
+The only TASK-039 Reviewer NOTE is Historical Ambiguous Checkpoint Migration:
+historical checkpoints without trustworthy provenance are rejected by default.
+Continuation requires trusted source verification and migration to explicit LEGACY
+or AGENT_BOUND first. General migration tooling is not implemented. This is a
+compatibility boundary of safe fail-closed behavior, not an open TASK-039 defect.

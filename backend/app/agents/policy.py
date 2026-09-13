@@ -9,7 +9,7 @@ class AgentToolPolicy:
 
     An allow result is not execution authorization: registry resolution, safety
     policy, HITL and Ledger checks remain the existing Tool Runtime's concern.
-    This policy is not wired into execution by the abstraction foundation.
+    The Tool boundary invokes this policy for an active trusted Agent context.
     """
 
     @staticmethod

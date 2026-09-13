@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from app.approved_execution import ApprovedToolExecutionService
+from app.approved_execution import ApprovedToolExecutionService, permission_scoped
 from app.executions.models import ExecutionStatus, canonical_arguments
 from app.executions.exceptions import ExecutionIdentityConflict, ExecutionReplayBlocked
 from app.llm.schemas import ToolCall
@@ -10,6 +10,7 @@ from app.tools.schemas import IdempotencyMode
 
 class ExecutionRecoveryService(ApprovedToolExecutionService):
     """Explicit single recovery attempt; ordinary execute() remains fail closed."""
+    @permission_scoped
     def recover(self, *, task_id: UUID, approval_id: UUID, tool_call: ToolCall, stale_before: datetime):
         self.validate(task_id=task_id, approval_id=approval_id, tool_call=tool_call)
         if self._executions is None:

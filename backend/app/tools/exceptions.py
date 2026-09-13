@@ -24,3 +24,12 @@ class ToolExecutionOutcomeUnknown(ToolExecutionError):
 
 class ToolExecutionFailedWithoutEffect(ToolExecutionError):
     """Explicit Tool contract: operation failed with no external effect."""
+
+
+class ToolPermissionDenied(ToolError):
+    """The Agent lacks permission; the Tool has not executed."""
+
+    def __init__(self, agent_name: str, tool_name: str):
+        self.agent_name = agent_name
+        self.tool_name = tool_name
+        super().__init__("Agent is not permitted to execute this Tool")

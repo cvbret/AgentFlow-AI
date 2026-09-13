@@ -581,25 +581,25 @@ commands, a zero-skips/zero-warnings pytest gate, and image build. Hosted CI evi
 and target deployment qualification remain separate release gates (ADR-010).
 
 
-## Multi-Agent Layer boundary (TASK-036 and TASK-037 completed; TASK-038+ proposed)
+## Multi-Agent Layer boundary (TASK-036 through TASK-039 completed; TASK-040+ not started)
 
 This section records the current Agent Layer and the remaining future direction.
 Agent Entity, AgentRegistry and AgentToolPolicy are established by TASK-036, and
-the Agent Communication Contract is established by TASK-037. Supervisor
-orchestration, routing, scheduling and software engineering tools remain
-unimplemented. See [Multi-Agent Design](MULTI_AGENT_DESIGN.md) and
+the Agent Communication Contract is established by TASK-037, and basic one-shot
+Supervisor orchestration is established by TASK-038. Advanced routing,
+scheduling and software engineering tools remain unimplemented. See [Multi-Agent Design](MULTI_AGENT_DESIGN.md) and
 [ADR-011](DECISIONS.md#adr-011---multi-agent-architecture-direction).
 
 Retain the application boundary:
 
 ```text
-TaskExecutionService
-  → Agent Layer (identity, role and policy description; non-executing)
-    → Agent Communication Contract (message / artifact / future interaction schema)
-      → existing AgentRuntime (single run / resume / recovery façade)
-        → LangGraph Supervisor workflow (proposed, bounded and sequential)
-          → Supervisor / Planner / Developer / Tester role nodes
-            → existing Tool Runtime (proposed Agent Tool Policy at its entry points)
+User / Caller
+  → Supervisor Agent (orchestration and delegation only)
+    → Agent Communication Contract (REQUEST / RESULT message and artifact schema)
+      → Worker Agent
+        → existing AgentRuntime (single run / resume / recovery façade)
+          → LangGraph
+            → existing Tool Runtime
               → Execution Reliability Layer
 ```
 
@@ -608,9 +608,10 @@ not own database Sessions, clients or execution lifecycles. Agent Entity,
 AgentRegistry and AgentToolPolicy form a descriptive layer above AgentRuntime.
 The Agent Communication Contract provides message and artifact schemas but does
 not perform routing, scheduling, execution, persistence, approval or recovery.
-The current AgentToolPolicy is not yet enforced by Tool Runtime. Future
-Supervisor delegation is workflow routing, not a second business Tool execution
-system or another AgentRuntime invocation.
+At the TASK-038 checkpoint AgentToolPolicy was not enforced; TASK-039 scoped enforcement is described below. TASK-038
+Supervisor delegation is a fixed, synchronous one-shot route and is not a
+second business Tool execution system or another AgentRuntime invocation.
+Complex Supervisor workflow routing remains future scope.
 
 Structured AgentMessage contracts carry selected inputs and results. Shared
 checkpoint state carries workflow coordination data and references only; existing
@@ -670,9 +671,10 @@ Approval, Ledger, Recovery or workflow code.
 
 Persistence boundary: in-memory runtime/domain objects only. No database tables,
 message store, checkpoint integration, artifact persistence or delivery guarantees.
-Supervisor, routing, scheduling, collaboration loops and Multi-Agent graphs remain
-unimplemented; a later task may connect these contracts through the existing
-Agent Layer → AgentRuntime boundary.
+At the TASK-037 scope, Supervisor, routing, scheduling, collaboration loops and
+Multi-Agent graphs remained unimplemented; TASK-038 subsequently added only the
+fixed one-shot Supervisor delegation through the existing Agent Layer → AgentRuntime
+boundary.
 
 The current TASK-037 definition narrows earlier TASK-035 roadmap suggestions:
 this task implements communication only; Supervisor work is reserved for TASK-038.
@@ -684,7 +686,7 @@ Independent Review: PASS WITH NOTES; BLOCKER = 0; IMPORTANT = 0. Final project-s
 synchronization is complete.
 
 
-## TASK-038 — One-shot Supervisor delegation (awaiting Independent Review)
+## TASK-038 — One-shot Supervisor delegation (completed; PASS WITH NOTES)
 
 Implemented in `backend/app/agents/supervisor.py`: create_supervisor returns the
 existing Agent with role SUPERVISOR; select_worker resolves an exact configured
@@ -712,7 +714,7 @@ The caller must provide an existing managed Task and properly configured Runtime
 This entry point is not wired to TaskExecutionService or HTTP; it does not create
 Task rows, claim lifecycle transitions or handle durable delegation resume.
 The existing Runtime owns execution and protected-tool safety. Role allowed_tools
-remains declarative: this MVP does not enforce per-Agent grants against Runtime
+was declarative at the TASK-038 checkpoint: that MVP did not enforce per-Agent grants against Runtime
 tools. An unrestricted Runtime must not be presented as isolated worker execution.
 Tests use an empty ToolRegistry for the real Runtime smoke path.
 
@@ -725,4 +727,161 @@ The explicit TASK-038 definition selects an above-Runtime rule-based MVP instead
 of implementing the earlier TASK-035 graph-internal Supervisor proposal.
 See ADR-012. No new execution system, LangGraph modification, scheduling, planner,
 autonomous loop, message persistence, queue or complex workflow is introduced.
-Developer validation: 14 TASK-038 tests passed; Independent Review pending.
+Developer validation: 14 TASK-038 tests passed; Independent Review = PASS WITH NOTES;
+BLOCKER = 0; IMPORTANT = 0.
+
+
+## Tool Permission Enforcement (TASK-039 / ADR-013)
+
+Trusted Agent definition -> tool_permission_context(agent) -> AgentRuntime /
+LangGraph -> existing Tool boundary -> AgentToolPolicy -> safety / authorization /
+Ledger -> effect. The Supervisor only transports the selected Worker identity;
+there is no permission decision inside Supervisor, AgentRuntime or the graph.
+
+A ContextVar carries the immutable Agent/grant fields for one invocation. Nested
+scopes reset in finally; concurrent graph work inherits its invocation context.
+No grant is read from prompts, messages, ToolCall arguments or Agent metadata.
+Roles are not implicit permissions: a Supervisor's empty allow list denies tools.
+AgentToolPolicy retains exact-name membership with no wildcard semantics.
+
+One decision helper in app/tools/permission.py is called by existing Tool entry
+points. ToolExecutor and ProtectedToolExecutionService check before resolution,
+input or approval-request construction. ApprovedToolExecutionService.validate checks
+before approval reads or ledger access, also covering inherited explicit recovery
+and successful cache reuse. Tool.execute checks before input validation/effects for
+direct base-contract calls. These guards share one policy rather than separate
+permission engines. Allowed callers still undergo every existing safety, Approval,
+Ledger identity and recovery-capability check. No lifecycle transitions changed.
+
+ToolPermissionDenied is a ToolError but not ToolExecutionError or external outcome
+uncertainty. Its message is fixed; agent_name/tool_name are internal context fields.
+Denial emits tool.permission.denied using the existing execution component, safe
+Tool-name/exception-type attributes and request/task context where present. No
+arguments, prompts, Agent metadata or raw exception strings are emitted. The existing
+allowlist drops unsafe names and sink failures cannot allow Tool execution.
+
+Compatibility/trust boundary: existing non-Agent Runtime/API calls without this
+context keep their previous behavior. This does not authenticate Agent identity or
+make the public API an Agent authorization endpoint. Trusted Agent callers must
+bind context; delegate_task does so automatically. Fresh resume/recovery callers
+no longer manually restore identity: the focused fix resolves checkpoint provenance
+through the Runtime's trusted Agent loader, or fails closed. No durable multi-agent
+resume, dynamic policy revocation, untrusted Python plugin sandbox, RBAC, OAuth,
+permission database or user-level authorization is claimed. Raw implementation hooks
+are internal Python contracts, not a security sandbox against malicious plugins.
+
+Developer evidence: 39 focused and 245 relevant PostgreSQL regression tests passed,
+0 failed/skipped/warnings. Historical initial implementation evidence; final review below supersedes the pending status. Four documentation files had
+prior user edits; those changes were retained, with TASK-039 additions layered on top.
+
+
+## TASK-039 Focused Fix — Identity continuity (review history)
+
+Reviewer confirmed IMPORTANT: a paused Agent-bound workflow lost its transient
+ContextVar on resume and silently took the unrestricted legacy branch. Focused Fix #1 addressed identity continuity; Re-Review #1 still found ambiguous
+historical provenance fail-open. Focused Fix #2 closed that remaining IMPORTANT;
+Independent Re-Review #2 is PASS WITH NOTES.
+
+Runtime.run now records only execution_mode (LEGACY / AGENT_BOUND) and
+agent_identity (Agent.name or null) in existing workflow checkpoint state.
+These fields originate from the trusted invocation context, never user messages,
+AgentMessage metadata, LLM output or Tool arguments. No Agent object, grants,
+prompt or policy snapshot is persisted; no business table or migration is added.
+
+Normal resume and resume_pending_tool restore provenance before continuation.
+Runtime assembles ApprovedToolExecutionService / ExecutionRecoveryService with
+the same task-scoped provenance callback, covering validation, cache replay,
+claims and recovery effects, including direct calls to these Runtime-owned services.
+Permission decisions remain at existing Tool boundaries, before persisted Approval
+reads and Ledger/cache/claim/effect access. Existing claim/fencing/error contracts
+and safety checks are preserved.
+
+Restoration uses injected agent_loader(name), supplied by trusted application
+composition (for example AgentRegistry.get). The returned Agent must match the
+persisted name. Missing resolver, unresolved/mismatched identity, malformed mode,
+missing identity on AGENT_BOUND, missing checkpoint or mismatched task fail closed
+with an authorization error (or resolver failure). A conflicting ambient Agent
+cannot override provenance; even a same-name ambient Agent cannot substitute its
+grants for the trusted loader's policy. ContextVar is now only transient transport
+for the restored Agent, always reset when continuation exits or raises.
+
+Second Focused Fix supersedes the initial compatibility interpretation:
+only explicit LEGACY checkpoints retain legacy continuation. Missing/null/unknown
+mode is ambiguous and rejected; new non-Agent runs explicitly store LEGACY.
+Standalone non-workflow Approved/Recovery services retain their legacy constructor
+contract; trusted composition must use the provenance callback for workflow-owned
+operations. They are not public Agent authorization endpoints.
+
+Configuration/rollout: agent_loader is optional for backward compatibility; existing
+application factories without it deliberately cannot resume AGENT_BOUND workflows.
+Wire the trusted AgentRegistry loader before enabling their successful continuation.
+Name reuse must not assign an old identity to a different principal. This fix does
+not add policy versioning, message persistence or delegation-result reconstruction.
+Pre-fix checkpoints that never recorded Agent provenance cannot be distinguished
+retrospectively from true legacy records: ALL ambiguous historical continuations
+are now rejected. Trusted migration/state repair must establish provenance before
+resuming; manual isolation alone does not authorize continuation.
+Arbitrary tampering with trusted checkpoint storage/Python internals is outside this
+trust boundary; external payloads cannot set the provenance fields.
+
+Verification on isolated task039 PostgreSQL:
+- Focused (identity + TASK-039 permission + Supervisor): 57 passed, 0 failed,
+  0 skipped, 0 warnings.
+- Affected set (above plus task resume, execution ledger, recovery and approval
+  decision): 160 passed, 0 failed, 0 skipped, 0 warnings.
+57 is a subset of 160; counts are not additive. No historical full qualification,
+Docker qualification, hosted CI or real provider test was repeated.
+
+## TASK-039 Final State — Completed / PASS WITH NOTES
+
+Independent Re-Review #2: **PASS WITH NOTES**. BLOCKER = 0; IMPORTANT = 0;
+both original IMPORTANTs = **Closed**. State Synchronization complete; awaiting Human Gate.
+Review evidence is supplied by TASK-039_State_Synchronization_Developer_Prompt.md:
+Independent Reviewer personally ran the affected PostgreSQL regression and confirmed
+**196 passed / 0 failed / 0 skipped / 0 warnings**. This documentation-only round
+has not rerun those tests. Coverage includes historical missing/null/unknown provenance,
+explicit LEGACY/AGENT_BOUND, fresh Runtime/Saver continuation, permissions, Supervisor,
+Approval, Ledger and Recovery. Reviewer probe: Tool effects = 0, Ledger calls = 0,
+loader calls = 0, and no successful result for an ambiguous historical checkpoint.
+
+AgentToolPolicy is enforced as an exact allow-list at the real Tool Runtime boundary,
+before Approval reads, Ledger claims, cached-result reuse or Tool effects.
+ToolPermissionDenied is not converted into an ordinary Tool execution failure.
+Supervisor/Runtime transport trusted Agent identity; LLM output, Tool arguments,
+AgentMessage metadata and ordinary external payloads cannot override it.
+Runtime persists execution_mode and agent_identity in existing LangGraph checkpoints,
+restores trusted identity through agent_loader on continuation, and binds transient
+execution context. Runtime does not make Tool permission decisions; ContextVar is
+transport only, never the sole durable identity source.
+
+| Continuation provenance | Final behavior |
+| --- | --- |
+| Explicit LEGACY, no Agent identity | Explicit legacy compatibility |
+| Explicit AGENT_BOUND | Restore durable trusted Agent identity and enforce AgentToolPolicy |
+| UNKNOWN / missing / null / unknown value / inconsistent mode and identity | Fail closed via ResumeAuthorizationError; no unrestricted continuation |
+
+The only TASK-039 Reviewer NOTE is Historical Ambiguous Checkpoint Migration:
+historical checkpoints without trustworthy provenance are rejected by default.
+Continuation requires trusted source verification and migration to explicit LEGACY
+or AGENT_BOUND first. General migration tooling is not implemented. This is a
+compatibility boundary of safe fail-closed behavior, not an open TASK-039 defect.
+
+Current security architecture:
+
+```text
+Supervisor / Agent
+  ↓
+AgentRuntime (durable provenance, continuation identity restoration, transient binding)
+  ↓
+LangGraph
+  ↓
+Tool Runtime
+  ↓
+AgentToolPolicy Enforcement (exact allow-list / permission deny decision)
+  ↓
+Approval / Ledger / Cache
+  ↓
+Tool Execution
+```
+
+Full delegation recovery and Multi-Agent HITL integration remain future work.

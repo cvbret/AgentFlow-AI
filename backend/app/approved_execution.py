@@ -1,5 +1,8 @@
 """Execution authorized by a persisted Approval, never by a resume boolean."""
+from app.tools.permission import ensure_tool_permission
 from collections.abc import Callable
+from contextlib import nullcontext
+from functools import wraps
 from app.observability import emit
 from uuid import UUID
 
@@ -17,15 +20,29 @@ class ResumeAuthorizationError(RuntimeError):
     pass
 
 
+def permission_scoped(method):
+    """Restore durable provenance before authorization, cache, claims or effects."""
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        context = (self._permission_scope(kwargs["task_id"])
+                   if self._permission_scope is not None else nullcontext())
+        with context:
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
 class ApprovedToolExecutionService:
     def __init__(self, registry: ToolRegistry, load_approval: Callable[[UUID], Approval | None],
-                 executions: ExecutionRepository | None = None):
+                 executions: ExecutionRepository | None = None, *, permission_scope=None):
+        self._permission_scope = permission_scope
         self._registry = registry
         self._executions = executions
         # Loader must read business persistence and close its transaction before returning.
         self._load_approval = load_approval
 
+    @permission_scoped
     def validate(self, *, approval_id: UUID, task_id: UUID, tool_call: ToolCall) -> Approval:
+        ensure_tool_permission(tool_call.name)
         approval = self._load_approval(approval_id)
         if (approval is None or approval.status is not ApprovalStatus.APPROVED
                 or approval.id != approval_id or approval.task_id != task_id
@@ -34,6 +51,7 @@ class ApprovedToolExecutionService:
             raise ResumeAuthorizationError("Persisted Approval does not authorize this continuation")
         return approval
 
+    @permission_scoped
     def execute(self, *, approval_id: UUID, task_id: UUID, tool_call: ToolCall) -> ToolExecutionResult:
         self.validate(approval_id=approval_id, task_id=task_id, tool_call=tool_call)
         if self._executions is None:

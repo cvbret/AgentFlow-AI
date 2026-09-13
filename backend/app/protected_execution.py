@@ -1,3 +1,4 @@
+from app.tools.permission import ensure_tool_permission
 from uuid import UUID
 
 from app.approvals.models import Approval
@@ -45,6 +46,7 @@ class ProtectedToolExecutionService:
         task_id: UUID,
         tool_call: ToolCall,
     ) -> ToolExecutionResult:
+        ensure_tool_permission(tool_call.name)
         tool = self._tool_registry.get(tool_call.name)
         metadata = tool.metadata()
         if self._execution_policy.is_automatic_execution_allowed(metadata):

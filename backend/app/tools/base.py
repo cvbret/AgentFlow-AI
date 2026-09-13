@@ -1,3 +1,4 @@
+from app.tools.permission import ensure_tool_permission
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from typing import Any
@@ -52,6 +53,7 @@ class Tool(ABC):
         *,
         context: ToolExecutionContext | None = None,
     ) -> ToolResult:
+        ensure_tool_permission(self.name)
         validated_input = self.validate_input(input_data)
         try:
             if self.idempotency_mode == IdempotencyMode.EXTERNAL_KEY:

@@ -8,6 +8,8 @@ from langgraph.types import interrupt
 
 class AgentGraphState(TypedDict):
     task_id: str  # AgentFlow Task.id; not LangGraph's internal task identifier.
+    execution_mode: NotRequired[str]
+    agent_identity: NotRequired[str | None]
     resume_result: NotRequired[str]
     messages: NotRequired[list[dict]]
     step_count: NotRequired[int]

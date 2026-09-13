@@ -20,6 +20,9 @@ from app.tools.registry import ToolRegistry
 from app.workflows.graph import AgentGraphState
 
 
+from app.agents.models import Agent
+from app.tools.permission import current_tool_agent, tool_permission_context
+
 DEFAULT_MAX_STEPS = 5
 
 
@@ -39,17 +42,19 @@ class AgentRuntime:
         checkpointer_factory: Callable[[], AbstractContextManager[BaseCheckpointSaver]] | None = None,
         approval_loader: Callable[[UUID], Approval | None] | None = None,
         execution_repository: ExecutionRepository | None = None,
+        agent_loader: Callable[[str], Agent | None] | None = None,
     ) -> None:
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
 
+        self._agent_loader = agent_loader
         self._llm_client = llm_client
         self._tool_registry = tool_registry
         self._max_steps = max_steps
         self._checkpointer_factory = checkpointer_factory
-        self._execution_recovery = (ExecutionRecoveryService(tool_registry, approval_loader, execution_repository)
+        self._execution_recovery = (ExecutionRecoveryService(tool_registry, approval_loader, execution_repository, permission_scope=self._workflow_permission)
                                     if approval_loader is not None else None)
-        self._approved_execution = (ApprovedToolExecutionService(tool_registry, approval_loader, execution_repository)
+        self._approved_execution = (ApprovedToolExecutionService(tool_registry, approval_loader, execution_repository, permission_scope=self._workflow_permission)
                                     if approval_loader is not None else None)
 
     def close(self) -> None:
@@ -61,7 +66,10 @@ class AgentRuntime:
         *,
         task_id: UUID,
     ) -> AgentResult:
+        agent = current_tool_agent()
         return self._invoke(task_id, {
+            "execution_mode": "AGENT_BOUND" if agent is not None else "LEGACY",
+            "agent_identity": agent.name if agent is not None else None,
             "task_id": str(task_id),
             "messages": [m.model_dump(mode="json") for m in initial_messages],
             "step_count": 0,
@@ -69,7 +77,8 @@ class AgentRuntime:
         })
 
     def resume(self, *, task_id: UUID, approval_id: UUID) -> AgentResult:
-        return self._invoke(task_id, None, approval_id=approval_id)
+        with self._workflow_permission(task_id):
+            return self._invoke(task_id, None, approval_id=approval_id)
 
     def _invoke(self, task_id: UUID, initial_state: AgentGraphState | None, *, approval_id: UUID | None = None) -> AgentResult:
         with observation_context(task_id=task_id, thread_id=task_id):
@@ -121,6 +130,33 @@ class AgentRuntime:
                 checkpointer=saver, approved_execution=self._approved_execution)
             yield graph, {"configurable": {"thread_id": str(task_id)}}
 
+    @contextmanager
+    def _workflow_permission(self, task_id: UUID):
+        # Checkpoint provenance was written by run(), never extracted from messages.
+        with self._recovery_graph(task_id) as (graph, config):
+            values = graph.get_state(config).values
+        if not values or values.get("task_id") != str(task_id):
+            raise ResumeAuthorizationError("Missing trusted workflow provenance")
+        mode = values.get("execution_mode")
+        identity = values.get("agent_identity")
+        if mode == "LEGACY" and identity is None:
+            yield  # Explicit legacy provenance; preserve existing caller restrictions.
+            return
+        if mode not in ("LEGACY", "AGENT_BOUND"):
+            raise ResumeAuthorizationError("Continuation provenance is missing or unknown")
+        if mode != "AGENT_BOUND" or not isinstance(identity, str) or not identity.strip():
+            raise ResumeAuthorizationError("Invalid Agent-bound workflow provenance")
+        if self._agent_loader is None:
+            raise ResumeAuthorizationError("Trusted Agent resolver is not configured")
+        agent = self._agent_loader(identity)
+        if not isinstance(agent, Agent) or agent.name != identity:
+            raise ResumeAuthorizationError("Trusted Agent identity cannot be restored")
+        ambient = current_tool_agent()
+        if ambient is not None and ambient.name != identity:
+            raise ResumeAuthorizationError("Agent context conflicts with workflow identity")
+        with tool_permission_context(agent):
+            yield
+
     def workflow_evidence(self, task_id: UUID) -> WorkflowEvidence:
         with self._recovery_graph(task_id) as (graph, config):
             state = graph.get_state(config)
@@ -137,7 +173,7 @@ class AgentRuntime:
             tool_call=tool_call, stale_before=stale_before)
 
     def resume_pending_tool(self, *, task_id: UUID, approval_id: UUID, checkpoint_id: str) -> AgentResult:
-        with observation_context(task_id=task_id, thread_id=task_id):
+        with self._workflow_permission(task_id), observation_context(task_id=task_id, thread_id=task_id):
             with self._recovery_graph(task_id) as (graph, config):
                 snapshot = graph.get_state(config)
                 pending = snapshot.values.get("pending_approval")

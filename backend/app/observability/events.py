@@ -11,7 +11,7 @@ EVENT_NAMES = frozenset({
     "task.created", "task.state_changed", "task.completed",
     "approval.requested", "approval.decided",
     "tool.execution.claimed", "tool.execution.cache_hit", "tool.execution.succeeded",
-    "tool.execution.failed", "tool.execution.unknown",
+    "tool.execution.failed", "tool.execution.unknown", "tool.permission.denied",
     "workflow.paused", "workflow.resumed",
     "recovery.started", "recovery.completed",
     "llm.request.started", "llm.request.succeeded", "llm.request.failed", "llm.retry.scheduled",

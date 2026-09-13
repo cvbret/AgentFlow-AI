@@ -7,6 +7,7 @@ from app.agents.models import Agent
 from app.agents.registry import AgentRegistry
 from app.agents.communication import AgentMessage, MessageType
 from app.llm.schemas import ChatMessage
+from app.tools.permission import tool_permission_context
 
 if TYPE_CHECKING:
     from app.agents.runtime import AgentRuntime
@@ -39,7 +40,8 @@ def delegate_task(
 ) -> DelegationResult:
     """Delegate exactly once; the caller owns task lifecycle and Runtime resources.
 
-    This entry point does not enforce role tool grants or persist messages.
+    This entry point carries worker identity; only Tool boundaries enforce grants.
+    It does not persist messages or permission context.
     Runtime errors/interrupt signals propagate unchanged. No retry or resume is
     attempted here, and a RESULT is constructed only after Runtime success.
     """
@@ -53,13 +55,14 @@ def delegate_task(
         receiver_agent_id=worker.name, message_type=MessageType.REQUEST,
         content=content,
     )
-    output = runtime.run(
-        [
-            ChatMessage(role="system", content=worker.system_prompt),
-            ChatMessage(role="user", content=request.content),
-        ],
-        task_id=request.task_id,
-    )
+    with tool_permission_context(worker):
+        output = runtime.run(
+            [
+                ChatMessage(role="system", content=worker.system_prompt),
+                ChatMessage(role="user", content=request.content),
+            ],
+            task_id=request.task_id,
+        )
     result = AgentMessage(
         task_id=request.task_id, sender_agent_id=worker.name,
         receiver_agent_id=supervisor.name, message_type=MessageType.RESULT,

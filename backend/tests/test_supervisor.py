@@ -127,7 +127,7 @@ def test_supervisor_source_has_no_execution_imports_or_loops():
     import app.agents.supervisor as module
     tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8-sig"))
     modules = [node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
-    assert not any(name and name.startswith(
+    assert not any(name and name != "app.tools.permission" and name.startswith(
         ("app.tools", "app.approvals", "app.executions", "app.workflows",
          "app.protected_execution", "app.approved_execution", "app.tasks")
     ) for name in modules)
@@ -142,3 +142,11 @@ def test_future_delegation_event_names(name):
     event = CommunicationEvent(event_name=name, task_id=uuid4(), message_id=uuid4())
     assert event.event_name.value == name
     assert "content" not in event.model_dump()
+
+
+def test_supervisor_imports_context_only_not_permission_decision():
+    import app.agents.supervisor as module
+    tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8-sig"))
+    imports = [n for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module == "app.tools.permission"]
+    assert len(imports) == 1
+    assert [n.name for n in imports[0].names] == ["tool_permission_context"]

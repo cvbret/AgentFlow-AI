@@ -394,9 +394,9 @@ Production Deployment Qualification and production-grade Provider Qualification 
 * AgentRegistry established
 * AgentToolPolicy established as a declarative policy layer
 * Agent Layer remains above AgentRuntime and does not execute Tasks or Tools
-* Supervisor orchestration and Agent Communication / Message Model not yet implemented
+* At the TASK-036 checkpoint, Supervisor orchestration and Agent Communication / Message Model were not yet implemented; both were subsequently completed by TASK-037 and TASK-038
 * metadata is currently a defensive copy rather than deeply immutable; it is not used for security decisions
-* AgentToolPolicy is not yet enforced by the Tool Runtime
+* At the TASK-036 checkpoint AgentToolPolicy was declarative; TASK-039 now implements scoped Tool boundary enforcement (Independent Re-Review #2: PASS WITH NOTES)
 * 85 passed
 
 * TASK-037 - Agent Communication Model
@@ -408,6 +408,15 @@ Production Deployment Qualification and production-grade Provider Qualification 
 * JSON serialization and UTC timestamp contract verified
 * Communication layer remains non-executing and non-persistent
 * 98 related tests passed
+
+* TASK-038 - Supervisor Orchestration
+* TASK-038 review result: PASS WITH NOTES
+* Supervisor Agent established using the existing Agent Entity
+* basic Supervisor → Worker delegation established
+* fixed Worker routing established
+* REQUEST / RESULT AgentMessage integration established through `metadata.in_reply_to`
+* Supervisor remains an orchestration and delegation layer, not an execution engine
+* 14 focused tests passed
 
 ## Real LLM / HTTP E2E Validation / 真实 LLM / HTTP E2E 验证
 
@@ -422,11 +431,11 @@ Production Deployment Qualification and production-grade Provider Qualification 
 * Review Result: PASS WITH NOTES; BLOCKER = 0; IMPORTANT = 0
 * DeepSeek is the validated development Provider, not an architecture binding
 
-上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029、TASK-030、TASK-031、TASK-032、TASK-033、TASK-034、TASK-036 和 TASK-037 已经过实现、测试及 Independent Review 验证；TASK-035 仍为 Multi-Agent 架构研究阶段。
+上述项目基础、TASK-001、TASK-002、TASK-003、TASK-004、TASK-005、TASK-006、TASK-007、TASK-008、TASK-009、TASK-010、TASK-011、TASK-012、TASK-013、TASK-014、TASK-015、TASK-016、TASK-017、TASK-018、TASK-019、TASK-020、TASK-021、TASK-022、TASK-023、TASK-024、TASK-025、TASK-026、TASK-027、TASK-028、TASK-029、TASK-030、TASK-031、TASK-032、TASK-033、TASK-034、TASK-036、TASK-037、TASK-038 和 TASK-039 已经过实现、测试及 Independent Review 验证；TASK-035 架构研究交付已完成，ADR-011 仍为 Proposed。
 
-## In Progress / 进行中
+## Multi-Agent Progress / 多 Agent 进展
 
-TASK-038 Supervisor Orchestration：Developer implementation complete，Awaiting Independent Review。新增 Supervisor Agent factory、固定 Developer 路由、REQUEST/RESULT 与一次既有 AgentRuntime 调用。专项测试 14 passed；未同步为 Reviewed / Completed。
+TASK-038 Supervisor Orchestration 已完成 Independent Review，Review Result 为 PASS WITH NOTES。新增 Supervisor Agent factory、固定 Developer 路由、REQUEST/RESULT 与一次既有 AgentRuntime 调用。专项测试 14 passed。
 
 ## Known Issues / 已知问题
 
@@ -437,12 +446,64 @@ TASK-038 Supervisor Orchestration：Developer implementation complete，Awaiting
 * TD-004 - Calculator accepts non-finite and boolean numeric inputs
 * TD-005 - Alembic configuration coupled to LLM application settings
 
+## Latest Completed Task / 最近完成任务
+
+TASK-039 - Tool Permission Enforcement
+
+Status: Completed
+Review: PASS WITH NOTES
+
 ## Next / 下一步
 
-TASK-038 - Supervisor Orchestration
+TASK-040 - Multi-Agent HITL Integration
 
-Status: Awaiting Independent Review
+Status: Not Started
 
-TASK-035、TASK-036 与 TASK-037 已完成当前 Multi-Agent Foundation。Communication Layer 只负责 message contract、artifact contract 与 future agent interaction schema；不负责 routing、scheduling、execution、persistence、approval 或 recovery。TASK-038 已实现基本 Supervisor delegation 与固定 Worker 路由，待独立审查；Scheduling、Planner、复杂 workflow 和消息/Artifact Persistence 尚未实现。
+TASK-035、TASK-036、TASK-037 与 TASK-038 已完成当前 Multi-Agent Foundation。Supervisor 负责 orchestration 与 delegation，不负责 execution engine、Tool execution、approval、ledger 或 recovery。TASK-039 Tool Permission Enforcement 已完成，Independent Re-Review #2 = PASS WITH NOTES；Scheduling、Planner、复杂 workflow 和消息/Artifact Persistence 尚未实现。
 
-Optional Future Work：Deployment Qualification、production-grade Provider Qualification、TASK-038+ Supervisor Orchestration、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、MCP。
+Optional Future Work：Deployment Qualification、production-grade Provider Qualification、OpenTelemetry backend、Metrics / dashboards、Worker / Queue、MCP。
+
+## TASK-039 Final State — Completed / PASS WITH NOTES
+
+Independent Re-Review #2: **PASS WITH NOTES**. BLOCKER = 0; IMPORTANT = 0;
+both original IMPORTANTs = **Closed**. State Synchronization complete; awaiting Human Gate.
+Review evidence is supplied by TASK-039_State_Synchronization_Developer_Prompt.md:
+Independent Reviewer personally ran the affected PostgreSQL regression and confirmed
+**196 passed / 0 failed / 0 skipped / 0 warnings**. This documentation-only round
+has not rerun those tests. Coverage includes historical missing/null/unknown provenance,
+explicit LEGACY/AGENT_BOUND, fresh Runtime/Saver continuation, permissions, Supervisor,
+Approval, Ledger and Recovery. Reviewer probe: Tool effects = 0, Ledger calls = 0,
+loader calls = 0, and no successful result for an ambiguous historical checkpoint.
+
+AgentToolPolicy is enforced as an exact allow-list at the real Tool Runtime boundary,
+before Approval reads, Ledger claims, cached-result reuse or Tool effects.
+ToolPermissionDenied is not converted into an ordinary Tool execution failure.
+Supervisor/Runtime transport trusted Agent identity; LLM output, Tool arguments,
+AgentMessage metadata and ordinary external payloads cannot override it.
+Runtime persists execution_mode and agent_identity in existing LangGraph checkpoints,
+restores trusted identity through agent_loader on continuation, and binds transient
+execution context. Runtime does not make Tool permission decisions; ContextVar is
+transport only, never the sole durable identity source.
+
+| Continuation provenance | Final behavior |
+| --- | --- |
+| Explicit LEGACY, no Agent identity | Explicit legacy compatibility |
+| Explicit AGENT_BOUND | Restore durable trusted Agent identity and enforce AgentToolPolicy |
+| UNKNOWN / missing / null / unknown value / inconsistent mode and identity | Fail closed via ResumeAuthorizationError; no unrestricted continuation |
+
+The only TASK-039 Reviewer NOTE is Historical Ambiguous Checkpoint Migration:
+historical checkpoints without trustworthy provenance are rejected by default.
+Continuation requires trusted source verification and migration to explicit LEGACY
+or AGENT_BOUND first. General migration tooling is not implemented. This is a
+compatibility boundary of safe fail-closed behavior, not an open TASK-039 defect.
+
+Completed Multi-Agent capabilities: TASK-035 architecture research (research deliverable),
+TASK-036 Agent Abstraction, TASK-037 Communication Contract, TASK-038 Supervisor
+Orchestration, TASK-039 Tool Permission Enforcement. TASK-035 research completion
+does not imply acceptance of the separately Proposed ADR-011.
+
+Not completed: Multi-Agent HITL Integration, full/advanced delegation recovery
+semantics and result reconstruction, historical provenance migration tooling,
+Planner, dynamic routing, scheduling, and message persistence.
+
+Next task: **TASK-040 - Multi-Agent HITL Integration**. Status: **Not Started**.
